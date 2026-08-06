@@ -64,6 +64,7 @@ path=(
 () {
     local -a keep=(
         '*/Microsoft VS Code/bin*'  # code
+        '*/Programs/Zed/bin*'      # zed
         '/mnt/[a-z]/Windows/[sS]ystem32'  # clip.exe, cmd.exe, where.exe
         '/mnt/[a-z]/Windows'        # explorer.exe
         '*/WinGet/Links*'           # winget-installed shims
