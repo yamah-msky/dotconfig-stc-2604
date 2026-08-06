@@ -291,10 +291,12 @@ func checkGo(e *Env, rp *report) {
 		return
 	}
 	cur := InstalledVersion("go")
-	// apt's golang on noble is 1.22.2, which upstream no longer supports, so a
-	// copy from outside our own tree is worth naming.
+	// A go outside our own managed locations (the pinned tarball's GoRoot, or the
+	// LocalBin symlink -- which may itself point at an apt copy that exactly
+	// matched the pin, see step_go) is not something bs.sh controls, so its
+	// version can drift out from under the pin on any apt upgrade.
 	if !strings.HasPrefix(where, e.LocalBin+"/") && !strings.HasPrefix(where, e.GoRoot+"/") {
-		rp.add("go", StatusWarn, "%s from %s (apt golang is EOL); pinned %s", cur, where, r.Ref)
+		rp.add("go", StatusWarn, "%s from %s (unmanaged copy); pinned %s", cur, where, r.Ref)
 		return
 	}
 	if cur == r.Ref {

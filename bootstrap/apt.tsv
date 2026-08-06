@@ -2,7 +2,7 @@
 #
 # Versions are deliberately NOT pinned. Ubuntu's archive removes superseded
 # versions, so `apt-get install ripgrep=14.1.1-1` starts failing the moment
-# noble-updates rotates the package -- a pin here would reduce reproducibility
+# resolute-updates rotates the package -- a pin here would reduce reproducibility
 # rather than add it. What we fix is the *set* of packages; security updates and
 # point releases are welcome. Anything version-sensitive lives in tools.tsv.
 #

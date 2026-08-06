@@ -45,7 +45,7 @@ path=(
     $HOME/.pixi/bin
     $PNPM_HOME/bin              # pnpm >=10 puts `pnpm add -g` binaries here
     $PNPM_HOME                  # ...and its own launcher scripts here
-    $HOME/.local/go/bin         # pinned Go (apt's golang on noble is EOL 1.22)
+    $HOME/.local/go/bin         # pinned Go (apt's patch version isn't ours to control)
     ${GOPATH:-$HOME/go}/bin
     $HOME/.nimble/bin
     $HOME/.elan/bin             # Lean

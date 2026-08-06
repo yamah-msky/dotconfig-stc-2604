@@ -43,12 +43,12 @@ if command -v go >/dev/null; then
     go vet ./... || exit 1
     go test ./... || exit 1
   ) || exit 1
-  # The tool has to stay buildable by what a bare Ubuntu 24.04 ships, because a
+  # The tool has to stay buildable by what a bare Ubuntu 26.04 ships, because a
   # fresh machine builds it before anything has upgraded Go.
-  if [ -x /usr/lib/go-1.22/bin/go ]; then
-    ( cd bootstrap/tool && /usr/lib/go-1.22/bin/go build -o /dev/null . ) \
-      || { echo "FAIL: does not build with Ubuntu's Go 1.22"; exit 1; }
-    echo "OK: builds with Ubuntu's Go 1.22 as well"
+  if [ -x /usr/lib/go-1.26/bin/go ]; then
+    ( cd bootstrap/tool && /usr/lib/go-1.26/bin/go build -o /dev/null . ) \
+      || { echo "FAIL: does not build with Ubuntu's Go 1.26"; exit 1; }
+    echo "OK: builds with Ubuntu's Go 1.26 as well"
   fi
 else
   echo "SKIP: go not installed (run: bootstrap/bs.sh --only go)"

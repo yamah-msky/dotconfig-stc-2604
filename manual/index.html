@@ -544,7 +544,7 @@ bs.sh update --check               <span class="c"># 上流との差分だけ</s
     <tr><td class="mono-col">tool:yt-dlp</td><td><span class="badge norm">–</span></td></tr>
     <tr><td class="mono-col">tool:stylua</td><td><span class="badge norm">–</span></td></tr>
     <tr><td class="mono-col">rust</td><td><span class="badge norm">–</span></td><td>rustup 経由。<code>stable</code> 追従。<code>rustfmt</code> と <code>clippy</code> も入れる</td><td class="mono-col">steps/50-runtimes.sh</td></tr>
-    <tr><td class="mono-col">go</td><td><span class="badge norm">–</span></td><td>上流 tarball を <code>~/.local/go</code> へ。<code>~/.local/bin</code> に shim（apt の golang は EOL 1.22）</td><td class="mono-col">steps/50-runtimes.sh</td></tr>
+    <tr><td class="mono-col">go</td><td><span class="badge norm">–</span></td><td>上流 tarball を <code>~/.local/go</code> へ。<code>~/.local/bin</code> に shim（apt のパッチ版はこちらの制御下にないので、完全一致する時だけ再利用）</td><td class="mono-col">steps/50-runtimes.sh</td></tr>
     <tr><td class="mono-col">node</td><td><span class="badge norm">–</span></td><td>nvm 経由。<strong><code>nvm alias default</code> を pin と一致させる</strong>のが要点</td><td class="mono-col">steps/50-runtimes.sh</td></tr>
     <tr><td class="mono-col">pnpm</td><td><span class="badge norm">–</span></td><td>pnpm 本体（corepack があればそれ経由）と、エディタが使う node ツール 3 つ（prettier, eslint_d, tree-sitter-cli）</td><td class="mono-col">steps/50-runtimes.sh</td></tr>
     <tr><td class="mono-col">nvim</td><td><span class="badge norm">–</span></td><td>bob 経由で pin された Neovim</td><td class="mono-col">steps/60-neovim.sh</td></tr>
@@ -595,7 +595,7 @@ bs.sh update --check               <span class="c"># 上流との差分だけ</s
     <tr><td class="mono-col">tool:yt-dlp</td></tr>
     <tr><td class="mono-col">tool:stylua</td></tr>
     <tr><td class="mono-col">rust</td><td><code>cargo</code> の版が <code>min</code> 以上か（pin ではなく下限で判定）</td><td><code>rustup update stable</code> または <code>bs.sh --only rust</code></td></tr>
-    <tr><td class="mono-col">go</td><td>pin と一致するか。<code>/usr/bin/go</code>（apt の EOL 1.22）が勝っていないか</td><td><code>bs.sh --only go</code></td></tr>
+    <tr><td class="mono-col">go</td><td>pin と一致するか。管理外のコピー（apt の <code>/usr/bin/go</code> など）が勝っていないか</td><td><code>bs.sh --only go</code></td></tr>
     <tr><td class="mono-col">node</td><td>pin と一致するか、<strong>かつ <code>$NVM_DIR/alias/default</code> が pin と一致するか</strong></td><td><code>bs.sh --only node</code>。<a href="#pitfalls">落とし穴 ③</a> を参照</td></tr>
     <tr><td class="mono-col">pnpm</td><td>pin と一致するか</td><td><code>bs.sh --only pnpm</code></td></tr>
     <tr><td class="mono-col">node:eslint_d</td><td rowspan="2">PATH にあるか、<strong>実際に動くか</strong>、そして単一の node バージョンのディレクトリの中にいないか（そこにあると次の node bump で消える）</td><td rowspan="2"><code>bs.sh --only pnpm</code>。<code>$PNPM_HOME/bin</code> に入れ直す</td></tr>
@@ -656,7 +656,7 @@ cd bootstrap/tool &amp;&amp; go test ./...   <span class="c"># manifest の形�
     <tr><td class="mono-col">nvim</td><td class="mono-col">v0.12.3</td><td class="mono-col">0.12.0</td><td>bob</td><td><code>lsp.lua</code> が 0.12 の native <code>vim.lsp</code> API で書かれているので 0.11 では動かない</td></tr>
     <tr><td class="mono-col">node</td><td class="mono-col">24.15.0</td><td class="mono-col">20.0.0</td><td>nvm</td><td><code>nvm alias default</code> を pin と一致させること（<a href="#pitfalls">落とし穴 ③</a>）</td></tr>
     <tr><td class="mono-col">pnpm</td><td class="mono-col">11.15.0</td><td class="mono-col">9.0.0</td><td>corepack / get.pnpm.io</td><td>インストーラは <code>PNPM_VERSION</code> を渡さないと pin を無視する</td></tr>
-    <tr><td class="mono-col">go</td><td class="mono-col">1.26.5</td><td class="mono-col">1.22.0</td><td>go.dev tarball</td><td>apt の <code>golang</code>（noble は 1.22.2）は EOL</td></tr>
+    <tr><td class="mono-col">go</td><td class="mono-col">1.26.5</td><td class="mono-col">1.22.0</td><td>go.dev tarball</td><td>apt の <code>golang-go</code>（resolute は 1.26.4）は現行だが、パッチ版はこちらの制御下にない</td></tr>
     <tr><td class="mono-col">rust</td><td class="mono-col">stable</td><td class="mono-col">1.85.0</td><td>rustup</td><td>意図的に追従（<a href="#daily">§3</a>）</td></tr>
   </tbody>
 </table>
@@ -667,7 +667,7 @@ cd bootstrap/tool &amp;&amp; go test ./...   <span class="c"># manifest の形�
 <p>
   グループ（<code>base</code> / <code>cpp</code> / <code>media</code>）ごとにパッケージを列挙する。
   <strong>版は意図的に pin しない。</strong> Ubuntu の archive は古い版を削除するので、
-  <code>ripgrep=14.1.1-1</code> のような pin は noble-updates がパッケージを差し替えた瞬間に壊れる。
+  <code>ripgrep=14.1.1-1</code> のような pin は resolute-updates がパッケージを差し替えた瞬間に壊れる。
   pin はここでは再現性を<strong>下げる</strong>。固定しているのは<strong>集合</strong>であって版ではない。
   版に敏感なものは <code>tools.tsv</code> に置く。
 </p>
@@ -679,7 +679,7 @@ cd bootstrap/tool &amp;&amp; go test ./...   <span class="c"># manifest の形�
   へ shell out する箇所が 100 以上ある。Go だとそれぞれが <code>exec.Command</code> + エラー処理になる。
   より本質的な理由として、<strong>bootstrap が自分でインストールするツールチェーンを要求してはいけない</strong>。
   この repo に CI は無く push もしないので、Go バイナリは新規マシン上で——
-  <code>runtimes.tsv</code> が置き換えようとしている EOL の Go 1.22 で——ビルドされることになる。</li>
+  <code>runtimes.tsv</code> が置き換えようとする前の、apt の Go 1.26 で——ビルドされることになる。</li>
   <li><strong>doctor と update は Go。</strong> こちらは HTTP・JSON・バージョン比較で、
   shell 版の実際のバグはすべてそこにあった（<code>0.9.3</code> が <code>0.10.0</code> より大きいと判定される、
   <code>v</code> 接頭辞の有無、アセット名の展開ミス）。<code>go test</code> で挙動を固定できる場所に置いた。
@@ -1168,13 +1168,13 @@ URL=&lt;playlist-url&gt; ./download-playlist.sh</code></pre>
 <h2 id="testing">11. テストと検証</h2>
 
 <pre><code>bootstrap/test/lint.sh         <span class="c"># bash -n / shellcheck / gofmt / go vet / go test</span>
-bootstrap/test/container.sh    <span class="c"># クリーンな ubuntu:24.04 でフル実走</span>
+bootstrap/test/container.sh    <span class="c"># クリーンな ubuntu:26.04 でフル実走</span>
 bootstrap/test/container.sh --fast   <span class="c"># nvim:plugins を飛ばして高速に</span>
 bootstrap/test/container.sh --shell  <span class="c"># テストせずコンテナ内のシェルに入る</span></code></pre>
 
 <p>
   <code>lint.sh</code> は shellcheck が未インストールならコンテナ版にフォールバックする
-  （未整備のマシンでこそ使いたいので）。Go ツールが <strong>Ubuntu 24.04 の Go 1.22 でビルドできること</strong>も
+  （未整備のマシンでこそ使いたいので）。Go ツールが <strong>Ubuntu 26.04 の Go 1.26 でビルドできること</strong>も
   確認する——新規マシンが持っているのはそれだから。
 </p>
 

@@ -40,9 +40,12 @@ step_rust() {
 # ----------------------------------------------------------------------------
 # Go
 # ----------------------------------------------------------------------------
-# Ubuntu's `golang` on noble is 1.22.2, which upstream no longer supports, so the
-# pinned tarball goes to ~/.local/go and is shimmed into ~/.local/bin (which
-# precedes /usr/bin, so an apt copy is shadowed rather than fought with).
+# Ubuntu's `golang-go` on 26.04 is current (1.26.x), unlike noble's EOL 1.22.2 --
+# but its exact patch is Ubuntu's to pick, not this repo's, so the pin still
+# comes from the upstream tarball, shimmed into ~/.local/bin (which precedes
+# /usr/bin, so an apt copy is shadowed rather than fought with). step_go reuses
+# an apt copy instead of downloading only when it happens to exactly match the
+# pin -- see the apt_go loop below.
 step_go() {
   local ref; ref=$(rt_ref go)
   arch_require
@@ -53,6 +56,21 @@ step_go() {
     run ln -sf "$GO_ROOT/bin/gofmt" "$LOCAL_BIN/gofmt"
     return 0
   fi
+
+  # apt's Go is current, not EOL, on 26.04 -- but its patch version is not
+  # something this repo controls, so it is only reused when it already happens
+  # to exactly match the pin. Never apt-installed here: doing so would usually
+  # still miss the exact pin and end up downloading the tarball anyway.
+  local apt_go
+  for apt_go in /usr/lib/go-*/bin/go; do
+    [ -x "$apt_go" ] || continue
+    if [ "$("$apt_go" version | awk '{print $3}')" = "go$ref" ]; then
+      ok "go $ref already at $apt_go (apt); linking instead of downloading"
+      run ln -sf "$apt_go" "$LOCAL_BIN/go"
+      run ln -sf "$(dirname "$apt_go")/gofmt" "$LOCAL_BIN/gofmt"
+      return 0
+    fi
+  done
 
   has go && info "go $(version_of go) at $(command -v go); installing the pinned $ref"
 

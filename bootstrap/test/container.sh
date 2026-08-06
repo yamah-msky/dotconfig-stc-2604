@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # bootstrap/test/container.sh
-# Run the whole bootstrap in a clean ubuntu:24.04 container and check the result.
+# Run the whole bootstrap in a clean ubuntu:26.04 container and check the result.
 #
 #   ./container.sh          full run, including the neovim plugin restore
 #   ./container.sh --fast   skip nvim:plugins (minutes of compiling) while iterating

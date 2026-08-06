@@ -58,7 +58,7 @@ runtimes.tsv   nvim / node / pnpm / go / rust, each via its own manager
 steps/*.sh     one file per concern, run in filename order
 tool/          doctor and update, in Go (see below)
 cleanup.sh     retire files that are no longer read (opt-in, moves not deletes)
-test/          lint.sh, and the whole thing in a clean ubuntu:24.04 container
+test/          lint.sh, and the whole thing in a clean ubuntu:26.04 container
 ```
 
 ### Why two languages
@@ -111,12 +111,16 @@ for the smallest example.
 (`sheldon/plugins.toml`), and the neovim plugin tree (`nvim/lazy-lock.json`).
 These are what the configuration actually invokes; a surprise major bump changes
 the prompt, the keybindings or the plugin loader. Pinning them is cheap because
-`bs.sh update` bumps them all at once.
+`bs.sh update` bumps them all at once. `go` is the one exception with a shortcut:
+`step_go` (`steps/50-runtimes.sh`) will link an apt-installed `/usr/lib/go-*/bin/go`
+instead of downloading, but only when its version exactly matches the pin —
+apt's patch release is not something this repo controls, so it is never trusted
+to satisfy the pin approximately.
 
 **Not pinned, deliberately:**
 
 - **apt packages.** Ubuntu's archive removes superseded versions, so
-  `ripgrep=14.1.1-1` starts failing the moment noble-updates rotates the
+  `ripgrep=14.1.1-1` starts failing the moment resolute-updates rotates the
   package. A pin here would reduce reproducibility. `apt.tsv` fixes the *set*.
 - **yt-dlp.** An old yt-dlp fails against site changes. `latest` is the
   reproducible choice here, and it says so explicitly in the manifest.
@@ -151,7 +155,7 @@ bootstrap/test/container.sh        # the real one; --fast skips the nvim plugins
 
 `lint.sh` falls back to shellcheck's container image when shellcheck is not
 installed yet, which is exactly when you most want to run it. It also checks the
-Go tool still builds with `/usr/lib/go-1.22/bin/go` — Ubuntu 24.04's Go — since
+Go tool still builds with `/usr/lib/go-1.26/bin/go` — Ubuntu 26.04's Go — since
 that is what a fresh machine has.
 
 **Presence on PATH is not health.** `has` (shell) and `Which` (Go) answer "is
@@ -163,7 +167,7 @@ itself instead. Use them for anything installed as a wrapper around a downloaded
 binary, and prefer counting a step's output — `.so` files built — over trusting
 the exit status of a command that logs its failure and exits 0 anyway.
 
-`container.sh` pipes `git archive HEAD` into a clean `ubuntu:24.04` with a
+`container.sh` pipes `git archive HEAD` into a clean `ubuntu:26.04` with a
 sudo-capable non-root user, runs the bootstrap, and then checks that a second run
 downloads nothing, that no tracked file was modified, that zsh starts silently,
 and that `doctor` passes. Only tracked files go in, so nothing untracked in

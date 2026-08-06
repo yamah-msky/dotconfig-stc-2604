@@ -1,7 +1,7 @@
 # A machine as close to "fresh Ubuntu" as the bootstrap can be asked to handle:
 # only what you would have before running it, plus sudo so the four root steps
 # are really tested instead of skipped.
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -y \

@@ -24,8 +24,11 @@ rust	stable	1.85.0	rustup
 #        $NVM_DIR/alias/default instead of sourcing nvm.sh (~620ms saved per
 #        shell). Keep `nvm alias default` in sync with this pin or that glob
 #        silently picks a different version.
-# go     apt's `golang` on noble is 1.22.2, which is EOL, so we install the
-#        upstream tarball to ~/.local/go and shim it into ~/.local/bin.
+# go     apt's `golang-go` on resolute (26.04) is a current 1.26.x, not EOL like
+#        noble's 1.22.2 was, but its patch version is Ubuntu's to pick, not
+#        ours, so we still install the upstream tarball to ~/.local/go and shim
+#        it into ~/.local/bin. step_go reuses an apt copy instead only when it
+#        already happens to exactly match this pin.
 # rust   floats on stable on purpose: nothing here depends on a rustc version,
 #        clippy and rust-analyzer only get better, and re-downloading a ~200MB
 #        toolchain on every bump is not worth it. `min` still catches an ancient

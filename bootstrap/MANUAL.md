@@ -54,5 +54,5 @@ bs.sh update --check            # 上流に遅れているものだけ表示
 
 ```sh
 bootstrap/test/lint.sh         # bash -n / shellcheck / gofmt / go vet / go test
-bootstrap/test/container.sh    # クリーンな ubuntu:24.04 でフル実走（--fast で高速化）
+bootstrap/test/container.sh    # クリーンな ubuntu:26.04 でフル実走（--fast で高速化）
 ```
