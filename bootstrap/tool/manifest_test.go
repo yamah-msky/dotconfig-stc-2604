@@ -71,6 +71,27 @@ func TestLoadRealManifests(t *testing.T) {
 				len(g.Packages))
 		}
 	}
+
+	npmGlobals, err := LoadNpmGlobals(dir)
+	if err != nil {
+		t.Fatalf("npm-globals.tsv: %v", err)
+	}
+	if len(npmGlobals) == 0 {
+		t.Fatal("npm-globals.tsv parsed to zero rows")
+	}
+	seenNpm := map[string]bool{}
+	for _, g := range npmGlobals {
+		if seenNpm[g.Name] {
+			t.Errorf("npm-globals.tsv has two rows named %q", g.Name)
+		}
+		seenNpm[g.Name] = true
+		if g.Package == "" || g.Ref == "" {
+			t.Errorf("%s: empty package or ref", g.Name)
+		}
+		if g.Probe() == "" {
+			t.Errorf("%s: Probe() returned empty", g.Name)
+		}
+	}
 }
 
 // Every placeholder must resolve on a supported arch. An unexpanded {BRACE} in a
@@ -110,7 +131,7 @@ func TestKnownAssetNames(t *testing.T) {
 
 	cases := map[string]string{
 		"eza":    "eza_x86_64-unknown-linux-gnu.tar.gz",
-		"fzf":    "fzf-0.74.1-linux_amd64.tar.gz",
+		"fzf":    "fzf-0.74.2-linux_amd64.tar.gz",
 		"zoxide": "zoxide-0.10.0-x86_64-unknown-linux-musl.tar.gz", // musl only; no gnu asset exists
 		"yazi":   "yazi-x86_64-unknown-linux-gnu.zip",
 		"bob":    "bob-linux-x86_64.zip",

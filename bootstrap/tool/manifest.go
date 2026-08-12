@@ -97,6 +97,28 @@ func (t Tool) DownloadURL(a Arch) string {
 	return fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", t.Repo, t.Ref, asset)
 }
 
+// NpmGlobal is one row of npm-globals.tsv: a user-declared CLI installed via
+// `pnpm add -g` into $PNPM_HOME, kept independent of whichever node version is
+// currently the nvm default. See the file's header comment for why that
+// independence matters.
+type NpmGlobal struct {
+	Name    string
+	Package string
+	Ref     string // pinned version, or "latest" to float
+	Bin     string // binary name, when it differs from Name
+}
+
+// Floating rows are never bumped by update, same convention as Tool.
+func (g NpmGlobal) Floating() bool { return g.Ref == refLatest }
+
+// Probe is the binary whose --version stands for the row.
+func (g NpmGlobal) Probe() string {
+	if g.Bin != "" {
+		return g.Bin
+	}
+	return g.Name
+}
+
 // Runtime is one row of runtimes.tsv.
 type Runtime struct {
 	Name, Ref, Min, How string
@@ -187,6 +209,22 @@ func LoadRuntimes(dir string) ([]Runtime, error) {
 			return nil, fmt.Errorf("runtimes.tsv row %d (%q): want 4 fields, got %d", i+1, r[0], len(r))
 		}
 		out = append(out, Runtime{r[0], r[1], r[2], r[3]})
+	}
+	return out, nil
+}
+
+func LoadNpmGlobals(dir string) ([]NpmGlobal, error) {
+	rs, err := rows(filepath.Join(dir, "npm-globals.tsv"))
+	if err != nil {
+		return nil, err
+	}
+	var out []NpmGlobal
+	for i, r := range rs {
+		if len(r) != 4 {
+			return nil, fmt.Errorf("npm-globals.tsv row %d (%q): want 4 tab-separated fields, got %d",
+				i+1, r[0], len(r))
+		}
+		out = append(out, NpmGlobal{Name: r[0], Package: r[1], Ref: r[2], Bin: r[3]})
 	}
 	return out, nil
 }

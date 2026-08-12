@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"strings"
 	"sync"
@@ -102,6 +103,30 @@ func LatestPnpm() (string, error) {
 	}
 	if v.DistTags.Latest == "" {
 		return "", fmt.Errorf("no dist-tags.latest for pnpm")
+	}
+	return v.DistTags.Latest, nil
+}
+
+// LatestNpmPackage returns the npm registry's "latest" dist-tag for any
+// package, scoped or not -- the same endpoint and field LatestPnpm reads for
+// pnpm itself, generalised for npm-globals.tsv. Scoped names need their slash
+// percent-encoded (registry.npmjs.org/@scope%2Fname); PathEscape leaves the
+// leading @ alone and encodes exactly that slash.
+func LatestNpmPackage(pkg string) (string, error) {
+	body, err := httpGet("https://registry.npmjs.org/" + url.PathEscape(pkg))
+	if err != nil {
+		return "", err
+	}
+	var v struct {
+		DistTags struct {
+			Latest string `json:"latest"`
+		} `json:"dist-tags"`
+	}
+	if err := json.Unmarshal(body, &v); err != nil {
+		return "", err
+	}
+	if v.DistTags.Latest == "" {
+		return "", fmt.Errorf("no dist-tags.latest for %s", pkg)
 	}
 	return v.DistTags.Latest, nil
 }

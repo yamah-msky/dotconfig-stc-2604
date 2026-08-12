@@ -55,6 +55,7 @@ func Doctor(e *Env, asJSON bool) int {
 	checkGo(e, rp)
 	checkNode(e, rp)
 	checkPnpm(e, rp)
+	checkNpmGlobals(e, rp)
 	checkNvim(e, rp)
 	checkGit(e, rp)
 	checkZshPlugins(e, rp)
@@ -383,6 +384,35 @@ func checkPnpm(e *Env, rp *report) {
 		rp.add("node:tools", StatusWarn,
 			"missing: %s (conform.nvim / nvim-lint / nvim-treesitter need these)",
 			strings.Join(missing, " "))
+	}
+}
+
+// npm-globals.tsv rows are protected against a node bump the same way
+// nodeGlobals is above (installed into $PNPM_HOME, not $NVM_DIR), but each row
+// also carries its own version pin, so this additionally compares against Ref
+// the way checkTools does for tools.tsv.
+func checkNpmGlobals(e *Env, rp *report) {
+	for _, g := range e.NpmGlobals {
+		id := "npm:" + g.Name
+		bin := g.Probe()
+		where := Which(bin)
+		switch {
+		case where == "":
+			rp.add(id, StatusWarn, "not installed (pinned %s)", g.Ref)
+		case !Runs(bin):
+			rp.add(id, StatusWarn, "%s exists but does not run (fix: bs.sh --only %s)", e.Tilde(where), id)
+		case strings.HasPrefix(where, e.NvmDir+"/"):
+			rp.add(id, StatusWarn,
+				"installed under a single node version (%s); bumping node loses it", where)
+		case g.Floating():
+			rp.add(id, StatusOK, "%s (floats)", InstalledVersion(bin))
+		default:
+			if cur := InstalledVersion(bin); cur == strings.TrimPrefix(g.Ref, "v") {
+				rp.add(id, StatusOK, "%s", cur)
+			} else {
+				rp.add(id, StatusWarn, "pinned %s, installed %s", g.Ref, cur)
+			}
+		}
 	}
 }
 

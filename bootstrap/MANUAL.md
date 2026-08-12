@@ -48,6 +48,7 @@ bs.sh update --check            # 上流に遅れているものだけ表示
 | ハイライトが無い / `nvim:parsers` が WARN | `bs.sh --only pnpm` の後に `bs.sh --only nvim:plugins` |
 | `locale` / `zdotdir` が FAIL | `bs.sh --only locale` / `--only zdotdir`（sudo 必要） |
 | プラグインが変わった | `bs.sh --only nvim:plugins` が lockfile の revision へ戻す |
+| `npm install -g` した CLI (codex 等) が消えた | node バージョン内に入っていて bump で PATH から外れただけ。`npm-globals.tsv` に一行足して `bs.sh --only npm:<name>` で `$PNPM_HOME` 配下に入れ直す |
 | 実行が途中で失敗した | 1 step の失敗で全体は止まらない。最後のサマリに再実行コマンドが出る |
 
 ## テスト

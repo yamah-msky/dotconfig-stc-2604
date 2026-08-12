@@ -1,0 +1,26 @@
+# User-declared CLIs installed globally via pnpm, kept version-independent of
+# the pinned node the same way tools.tsv/tool_install pins release binaries.
+#
+# The problem this exists for: `npm install -g` (and anything that behaves
+# like it) puts a package inside $NVM_DIR/versions/node/vX.Y.Z/lib/node_modules
+# -- one node version's own directory. zsh/.zshenv only PATHs the version
+# `nvm alias default` currently points at (see lib.sh's path_init, which globs
+# just that one directory rather than sourcing nvm.sh), so the moment
+# `bs.sh --only node` bumps that alias to the pin in runtimes.tsv, anything
+# installed this way silently drops off PATH -- it looks deleted, but it is
+# only stranded under the old version. steps/50-runtimes.sh's NODE_GLOBALS
+# already hit this with prettier and eslint_d; this manifest extends the same
+# fix (install into $PNPM_HOME, which is on PATH regardless of node version) to
+# whatever CLIs you personally add here.
+#
+# Columns (tab separated):
+#   name     step id becomes `npm:<name>`, and the doctor row is named the same
+#   package  the npm/pnpm package name, e.g. @openai/codex
+#   ref      pinned version, or `latest` to float (bumped by `bs.sh update`
+#            only when not `latest`, exactly like tools.tsv)
+#   bin      the binary name, when it differs from `name`
+#
+# Bump a pinned ref with `bs.sh update`, review the diff, then commit.
+#
+# name	package	ref	bin
+codex	@openai/codex	latest	codex

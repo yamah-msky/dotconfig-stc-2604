@@ -9,12 +9,14 @@
 #   bs.sh list            list the steps
 #
 # What goes where:
-#   tools.tsv     prebuilt binaries from GitHub releases -> ~/.local/bin
-#   apt.tsv       apt package set, by group
-#   runtimes.tsv  nvim / node / pnpm / go / rust, each via its own manager
-#   steps/*.sh    one file per concern, registering steps in numeric order
+#   tools.tsv        prebuilt binaries from GitHub releases -> ~/.local/bin
+#   apt.tsv          apt package set, by group
+#   runtimes.tsv     nvim / node / pnpm / go / rust, each via its own manager
+#   npm-globals.tsv  npm/pnpm global CLIs, version-independent of nvm's node
+#   steps/*.sh       one file per concern, registering steps in numeric order
 #
-# Adding a tool is one line in tools.tsv. Nothing else.
+# Adding a GitHub-release tool is one line in tools.tsv; a global npm/pnpm CLI
+# is one line in npm-globals.tsv. Nothing else.
 # =============================================================================
 
 # Not -e: a failing step is collected and reported at the end rather than

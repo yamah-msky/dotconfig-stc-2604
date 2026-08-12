@@ -50,15 +50,16 @@ leaves the result as a reviewable diff.
 ## Layout
 
 ```
-bs.sh          the driver: argument parsing, step dispatch, install
-lib.sh         everything the steps share (logging, versions, downloads, PATH)
-tools.tsv      prebuilt binaries from GitHub releases -> ~/.local/bin
-apt.tsv        apt package set, by group
-runtimes.tsv   nvim / node / pnpm / go / rust, each via its own manager
-steps/*.sh     one file per concern, run in filename order
-tool/          doctor and update, in Go (see below)
-cleanup.sh     retire files that are no longer read (opt-in, moves not deletes)
-test/          lint.sh, and the whole thing in a clean ubuntu:26.04 container
+bs.sh             the driver: argument parsing, step dispatch, install
+lib.sh            everything the steps share (logging, versions, downloads, PATH)
+tools.tsv         prebuilt binaries from GitHub releases -> ~/.local/bin
+apt.tsv           apt package set, by group
+runtimes.tsv      nvim / node / pnpm / go / rust, each via its own manager
+npm-globals.tsv   npm/pnpm global CLIs -> $PNPM_HOME, independent of nvm's node
+steps/*.sh        one file per concern, run in filename order
+tool/             doctor and update, in Go (see below)
+cleanup.sh        retire files that are no longer read (opt-in, moves not deletes)
+test/             lint.sh, and the whole thing in a clean ubuntu:26.04 container
 ```
 
 ### Why two languages
@@ -105,10 +106,26 @@ Anything more involved than "download and unpack" gets a step in `steps/`. A ste
 is a shell function plus a one-line `register` call; see `steps/30-zdotdir.sh`
 for the smallest example.
 
+If it is a CLI you install globally via npm/pnpm (a coding-agent tool, a
+linter, anything not needed by this repo's own configs but that you use day to
+day), add one line to `npm-globals.tsv` instead. `npm install -g` puts a
+package inside `$NVM_DIR/versions/node/vX.Y.Z/lib/node_modules` -- one node
+version's own directory -- and `zsh/.zshenv` only ever PATHs the version
+`nvm alias default` currently points at (see `lib.sh`'s `path_init`), so the
+package silently drops off PATH the next time `bs.sh --only node` bumps that
+alias to the pin in `runtimes.tsv`. It looks deleted; it is actually just
+stranded under the old version. `npm-globals.tsv` installs the same package via
+`pnpm add -g` into `$PNPM_HOME` instead, which stays on PATH regardless of
+which node is current -- the same fix `steps/50-runtimes.sh`'s `NODE_GLOBALS`
+already applies to prettier and eslint_d, generalised to a manifest so adding
+one is as cheap as adding a row to `tools.tsv`.
+
 ## Why these versions are pinned, and these are not
 
 **Pinned** — the release binaries, nvim, node, pnpm, go, the zsh plugins
-(`sheldon/plugins.toml`), and the neovim plugin tree (`nvim/lazy-lock.json`).
+(`sheldon/plugins.toml`), the neovim plugin tree (`nvim/lazy-lock.json`), and
+`npm-globals.tsv` rows (unless a row says `latest`, the same opt-out `tools.tsv`
+gives yt-dlp).
 These are what the configuration actually invokes; a surprise major bump changes
 the prompt, the keybindings or the plugin loader. Pinning them is cheap because
 `bs.sh update` bumps them all at once. `go` is the one exception with a shortcut:

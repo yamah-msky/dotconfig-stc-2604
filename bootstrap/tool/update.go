@@ -38,6 +38,13 @@ func Update(e *Env, only []string, check bool) int {
 		}
 		jobs["tool:"+t.Name] = func() (string, error) { return LatestReleaseTag(t.Repo) }
 	}
+	for _, g := range e.NpmGlobals {
+		g := g
+		if !selected(g.Name) || g.Floating() {
+			continue
+		}
+		jobs["npm:"+g.Name] = func() (string, error) { return LatestNpmPackage(g.Package) }
+	}
 	if selected("nvim") {
 		jobs["rt:nvim"] = func() (string, error) { return LatestReleaseTag("neovim/neovim") }
 	}
@@ -93,6 +100,29 @@ func Update(e *Env, only []string, check bool) int {
 			continue
 		}
 		changes = append(changes, change{t.Name, "tools.tsv", t.Name, 2, t.Ref, r.latest})
+	}
+
+	// npm-globals.tsv, in manifest order.
+	for _, g := range e.NpmGlobals {
+		if g.Floating() {
+			if selected(g.Name) {
+				skipf("%-12s %s (floats by design)", g.Name, g.Ref)
+			}
+			continue
+		}
+		r, ok := got["npm:"+g.Name]
+		if !ok {
+			continue
+		}
+		if r.err != nil {
+			problems = append(problems, fmt.Sprintf("%s: %v", g.Name, r.err))
+			continue
+		}
+		if r.latest == g.Ref {
+			skipf("%-12s %s", g.Name, g.Ref)
+			continue
+		}
+		changes = append(changes, change{g.Name, "npm-globals.tsv", g.Name, 3, g.Ref, r.latest})
 	}
 
 	// runtimes.tsv. rust tracks stable on purpose and is never bumped.

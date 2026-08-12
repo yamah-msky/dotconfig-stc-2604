@@ -26,10 +26,11 @@ type Env struct {
 	PnpmHome     string
 	Arch         Arch
 
-	Tools     []Tool
-	Runtimes  map[string]Runtime
-	AptGroups []AptGroup
-	Plugins   []Plugin
+	Tools      []Tool
+	Runtimes   map[string]Runtime
+	AptGroups  []AptGroup
+	Plugins    []Plugin
+	NpmGlobals []NpmGlobal
 }
 
 func NewEnv() (*Env, error) {
@@ -90,6 +91,9 @@ func NewEnv() (*Env, error) {
 	}
 	// Not fatal: a machine could legitimately have no sheldon config yet.
 	e.Plugins, _ = LoadPlugins(e.ConfigDir)
+	if e.NpmGlobals, err = LoadNpmGlobals(e.BootstrapDir); err != nil {
+		return nil, fmt.Errorf("loading npm-globals.tsv: %w", err)
+	}
 
 	return e, nil
 }
