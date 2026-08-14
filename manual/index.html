@@ -272,7 +272,7 @@ footer {
     <li><a href="#bootstrap">bootstrap リファレンス</a>
       <ul>
         <li><a href="#steps">step 一覧（28）</a></li>
-        <li><a href="#doctor-rows">doctor の行（39）</a></li>
+<li><a href="#doctor-rows">doctor の行（42）</a></li>
         <li><a href="#manifests">manifest の列仕様</a></li>
         <li><a href="#two-languages">なぜ shell と Go の二言語か</a></li>
       </ul>
@@ -358,7 +358,7 @@ git checkout main
 <span class="c"># 3. あとはこれ 1 つ</span>
 ./bootstrap/bs.sh
 
-<span class="c"># 4. 新しいシェルへ</span>
+<span class="c"># 4. 初回は再ログイン（または newgrp docker）後、新しいシェルへ</span>
 exec zsh</code></pre>
 
 <p>
@@ -372,8 +372,8 @@ exec zsh</code></pre>
 
 <pre><code>./bootstrap/bs.sh --no-sudo</code></pre>
 
-<p>root が必要な 7 step（<code>apt:base</code> <code>apt:cpp</code> <code>apt:media</code>
-<code>gh</code> <code>locale</code> <code>zdotdir</code> <code>shell</code>）は飛ばされ、
+<p>root が必要な 8 step（<code>apt:base</code> <code>apt:cpp</code> <code>apt:media</code>
+<code>gh</code> <code>docker</code> <code>locale</code> <code>zdotdir</code> <code>shell</code>）は飛ばされ、
 それ以外はすべて実行される。<code>locale</code> には root 不要の代替経路もあり、
 <code>$XDG_DATA_HOME/locale</code> に <code>localedef</code> で自前生成して
 <code>zsh/.zshenv</code> が <code>LOCPATH</code> 経由で拾う。</p>
@@ -525,6 +525,7 @@ bs.sh update --check               <span class="c"># 上流との差分だけ</s
     <tr><td class="mono-col">apt:cpp</td><td><span class="badge root">要</span></td><td>C/C++ ツールチェーン（clang, clangd, clang-format, clang-tidy, lldb, gdb, cmake, ninja-build, make）</td><td class="mono-col">steps/10-apt.sh</td></tr>
     <tr><td class="mono-col">apt:media</td><td><span class="badge root">要</span></td><td>ffmpeg（yt-dlp がストリーム結合に使う）</td><td class="mono-col">steps/10-apt.sh</td></tr>
     <tr><td class="mono-col">gh</td><td><span class="badge root">要</span></td><td>GitHub CLI。専用の apt リポジトリから</td><td class="mono-col">steps/10-apt.sh</td></tr>
+    <tr><td class="mono-col">docker</td><td><span class="badge root">要</span></td><td>公式 apt リポジトリから Docker Engine / CLI / containerd / Buildx / Compose を導入し、service・ユーザー権限を設定</td><td class="mono-col">steps/15-docker.sh</td></tr>
     <tr><td class="mono-col">locale</td><td><span class="badge root">要</span></td><td><code>zsh/.zshenv</code> が要求する ja_JP / en_US ロケールを生成</td><td class="mono-col">steps/20-locale.sh</td></tr>
     <tr><td class="mono-col">zdotdir</td><td><span class="badge root">要</span></td><td><code>/etc/zsh/zshenv</code> 経由で zsh を <code>~/.config/zsh</code> に向ける</td><td class="mono-col">steps/30-zdotdir.sh</td></tr>
     <tr><td class="mono-col">tool:eza</td><td><span class="badge norm">–</span></td><td rowspan="12">
@@ -558,7 +559,7 @@ bs.sh update --check               <span class="c"># 上流との差分だけ</s
 </table>
 </div>
 
-<h3 id="doctor-rows">doctor の行（39）</h3>
+<h3 id="doctor-rows">doctor の行（42）</h3>
 
 <p>
   <code>bs.sh doctor</code> は install とは<strong>別の実装</strong>（Go）でマシンを検査する。
@@ -577,6 +578,9 @@ bs.sh update --check               <span class="c"># 上流との差分だけ</s
     <tr><td class="mono-col">shim:fd</td><td rowspan="2">Ubuntu の <code>fd-find</code>/<code>bat</code> は <code>fdfind</code>/<code>batcat</code> という名前で入る。<code>~/.local/bin</code> に本来の名前の shim があるか</td><td rowspan="2"><code>bs.sh --only apt:base</code>。無いと <code>zsh/aliases.zsh</code> が素の <code>ls</code>/<code>cat</code> にフォールバックする</td></tr>
     <tr><td class="mono-col">shim:bat</td></tr>
     <tr><td class="mono-col">gh</td><td>GitHub CLI が入っているか（版は pin しない）</td><td><code>bs.sh --only gh</code>（sudo 必要）</td></tr>
+    <tr><td class="mono-col">docker:packages</td><td>公式 apt source/key と Engine・CLI・containerd・Buildx・Compose が揃い、CLI plugins が動くか</td><td rowspan="3"><code>bs.sh --only docker</code>（sudo 必要）。初回のグループ追加後は <code>newgrp docker</code> または再ログイン</td></tr>
+    <tr><td class="mono-col">docker:service</td><td>docker/containerd service が enable かつ active か</td></tr>
+    <tr><td class="mono-col">docker:access</td><td>ユーザーと現在の shell に docker group が反映され、sudo なしで daemon API に接続できるか</td></tr>
     <tr><td class="mono-col">locale</td><td>ja_JP.UTF-8 / en_US.UTF-8 が system-wide か <code>LOCPATH</code> 経由で使えるか</td><td><span class="badge fail">FAIL</span> なら全サブプロセスが <code>LC_CTYPE</code> の警告を出す状態。<code>bs.sh --only locale</code></td></tr>
     <tr><td class="mono-col">zdotdir</td><td><code>/etc/zsh/zshenv</code> に <code>ZDOTDIR</code> が設定されているか</td><td><span class="badge fail">FAIL</span> は zsh がこの repo を読んでいない状態。<code>bs.sh --only zdotdir</code></td></tr>
     <tr><td class="mono-col">tool:eza</td><td rowspan="12">
@@ -1225,6 +1229,7 @@ bootstrap/test/container.sh --shell  <span class="c"># テストせずコンテ�
   <li>Go が無い状態の <code>doctor</code> が<strong>「先に <code>--only go</code> を実行せよ」と言う</strong>こと
   （ビルドエラーで死なないこと）</li>
   <li>フルインストールが失敗ゼロで通ること</li>
+  <li>Docker の公式 repository・packages・plugins・ユーザーグループが構成されること</li>
   <li><strong>2 回目の実行でダウンロードが 0 件</strong>であること（冪等性）</li>
   <li><strong>追跡ファイルが 1 つも変更されないこと</strong></li>
   <li>zsh が無出力で起動すること</li>
@@ -1235,14 +1240,15 @@ bootstrap/test/container.sh --shell  <span class="c"># テストせずコンテ�
 <p>
   コンテナには sudo 可能な非 root ユーザーが居るので、root 必須の step も
   <strong>本当に実行される</strong>。<code>/mnt/*</code> も WSL も無いので、WSL 処理が
-  自分で skip する経路もそこで検証される。
+  自分で skip する経路もそこで検証される。PID 1 は systemd ではないため、Docker の
+  service/daemon probe だけは INFO として明示的に飛ばし、実ホスト側の doctor で必須検査する。
 </p>
 
 <div class="note">
-  <span class="label">直近の実行結果</span>
-  <p>クリーンコンテナでのフル実走: <strong>doctor 全 39 行 OK / <code>EXIT=0</code></strong>、
-  <code>nvim:parsers</code> は要求どおり <strong>18 パーサー</strong>。
-  2 回目のダウンロード 0 件・追跡ファイル無変更・zsh 無音起動も維持。</p>
+  <span class="label">合格条件</span>
+  <p>クリーンコンテナで <code>doctor</code> が <code>EXIT=0</code>、2 回目のダウンロード 0 件、
+  追跡ファイル無変更、zsh 無音起動を満たすこと。Docker daemon 自体は実ホストで
+  <code>docker info</code> と <code>docker run --rm hello-world</code> により確認する。</p>
 </div>
 
 <!-- ================================================================== -->

@@ -85,7 +85,7 @@ package has **no dependencies**, so the build needs no network and no `go.sum`.
 
 The cost of this split is that a step's install lives in `steps/*.sh` while its
 verification lives in `tool/doctor.go`. Manifest-driven rows are unaffected —
-`tools.tsv` still generates both — but the eight bespoke steps now have two homes.
+`tools.tsv` still generates both — but the bespoke steps now have two homes.
 
 ### Adding a tool
 
@@ -151,10 +151,28 @@ whatever version Mason's registry offers that day. Pinning them would mean
 `mason-lock.nvim`. Treesitter parsers *are* effectively pinned, because they
 compile from the `nvim-treesitter` commit in `lazy-lock.json`.
 
+## Docker Engine
+
+The `docker` step configures Docker's signed first-party apt repository and
+installs Docker Engine, the CLI, containerd, Buildx and Compose. Like the other
+apt-managed packages, these follow the repository's stable channel rather than
+being version-pinned. Existing images, containers, volumes and daemon settings
+are left alone.
+
+Packages that conflict with Docker CE (`docker.io`, `podman-docker`, a standalone
+`containerd` or `runc`, and related packages) are never removed automatically.
+The step stops and prints the exact installed conflicts so the replacement can
+be reviewed explicitly.
+
+The invoking user is added to the `docker` group. This grants root-equivalent
+access to the daemon. The account database changes immediately, but an existing
+shell keeps its old supplementary groups: run `newgrp docker`, or log out and
+back in (restart WSL if necessary). `exec zsh` alone does not refresh groups.
+
 ## Root
 
-Four steps need it: `apt:base`, `apt:cpp`, `apt:media`, `gh`, `locale`,
-`zdotdir` and `shell`. They elevate individual commands; **do not run `bs.sh`
+Eight steps need it: `apt:base`, `apt:cpp`, `apt:media`, `gh`, `docker`,
+`locale`, `zdotdir` and `shell`. They elevate individual commands; **do not run `bs.sh`
 itself under sudo** — it would install into `/root/.local`, and it refuses.
 
 `--no-sudo` skips them and everything else still runs, then prints the command to
@@ -189,6 +207,9 @@ sudo-capable non-root user, runs the bootstrap, and then checks that a second ru
 downloads nothing, that no tracked file was modified, that zsh starts silently,
 and that `doctor` passes. Only tracked files go in, so nothing untracked in
 `~/.config` — the gh token, shell history — reaches the container.
+The container has no systemd as PID 1, so it exercises Docker's repository,
+packages, plugins and group setup but explicitly marks only the service/daemon
+probe as INFO; that probe is mandatory on a live host.
 
 ## WSL
 

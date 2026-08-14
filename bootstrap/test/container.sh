@@ -57,12 +57,14 @@ git -C "$HOME/.config" -c user.email=t@example.com -c user.name=t \
 
 if [ "$MODE" = shell ]; then
   git -C "$CONFIG_DIR" archive HEAD \
-    | exec docker run --rm -i "$IMAGE" bash -lc "$SEED"'; cd ~/.config; exec bash'
+    | exec docker run --rm -i -e BOOTSTRAP_TEST_NO_SYSTEMD=1 "$IMAGE" \
+        bash -lc "$SEED"'; cd ~/.config; exec bash'
 fi
 
 echo "==> running bootstrap in a clean container"
 git -C "$CONFIG_DIR" archive HEAD \
-  | docker run --rm -i -e "SKIP_ARG=$SKIP_ARG" "$IMAGE" bash -lc "$SEED"'
+  | docker run --rm -i -e "SKIP_ARG=$SKIP_ARG" -e BOOTSTRAP_TEST_NO_SYSTEMD=1 \
+      "$IMAGE" bash -lc "$SEED"'
 echo "--- bs.sh --dry-run (must change nothing) -------------------------------"
 "$HOME/.config/bootstrap/bs.sh" --dry-run >/dev/null || { echo "FAIL: dry run"; exit 1; }
 

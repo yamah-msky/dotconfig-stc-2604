@@ -48,6 +48,7 @@ func Doctor(e *Env, asJSON bool) int {
 	checkApt(e, rp)
 	checkShims(e, rp)
 	checkGh(e, rp)
+	checkDocker(e, rp)
 	checkLocale(e, rp)
 	checkZdotdir(e, rp)
 	checkTools(e, rp)
@@ -162,6 +163,132 @@ func checkGh(e *Env, rp *report) {
 		return
 	}
 	rp.add("gh", StatusOK, "%s", InstalledVersion("gh"))
+}
+
+// ----------------------------------------------------------------------------
+// Docker Engine
+// ----------------------------------------------------------------------------
+
+var dockerPackages = []string{
+	"docker-ce", "docker-ce-cli", "containerd.io",
+	"docker-buildx-plugin", "docker-compose-plugin",
+}
+
+func dockerRepoState() (repo, key bool) {
+	paths := []string{"/etc/apt/sources.list"}
+	listFiles, _ := filepath.Glob("/etc/apt/sources.list.d/*")
+	paths = append(paths, listFiles...)
+	for _, path := range paths {
+		b, err := os.ReadFile(path)
+		if err != nil || !strings.Contains(string(b), "download.docker.com/linux/ubuntu") {
+			continue
+		}
+		repo = true
+		for _, line := range strings.Split(string(b), "\n") {
+			lower := strings.ToLower(strings.TrimSpace(line))
+			var keyPath string
+			switch {
+			case strings.HasPrefix(lower, "signed-by:"):
+				keyPath = strings.TrimSpace(line[strings.Index(line, ":")+1:])
+			case strings.Contains(lower, "signed-by="):
+				i := strings.Index(lower, "signed-by=") + len("signed-by=")
+				if fields := strings.Fields(line[i:]); len(fields) > 0 {
+					keyPath = strings.Trim(fields[0], "[]\"'")
+				}
+			}
+			if keyPath != "" && fileExists(keyPath) {
+				key = true
+			}
+		}
+	}
+	return repo, key
+}
+
+func checkDocker(e *Env, rp *report) {
+	have := dpkgInstalled(dockerPackages)
+	var missing []string
+	for _, p := range dockerPackages {
+		if !have[p] {
+			missing = append(missing, p)
+		}
+	}
+	repo, key := dockerRepoState()
+	switch {
+	case len(missing) > 0:
+		rp.add("docker:packages", StatusWarn, "missing: %s", strings.Join(missing, " "))
+	case !repo:
+		rp.add("docker:packages", StatusWarn, "packages installed but Docker apt repository is missing")
+	case !key:
+		rp.add("docker:packages", StatusWarn, "Docker apt source has no readable Signed-By key")
+	case exec.Command("docker", "buildx", "version").Run() != nil:
+		rp.add("docker:packages", StatusWarn, "Buildx plugin does not run")
+	case exec.Command("docker", "compose", "version").Run() != nil:
+		rp.add("docker:packages", StatusWarn, "Compose plugin does not run")
+	default:
+		rp.add("docker:packages", StatusOK, "Engine, CLI, containerd, Buildx and Compose installed")
+	}
+
+	if os.Getenv("BOOTSTRAP_TEST_NO_SYSTEMD") == "1" {
+		rp.add("docker:service", StatusInfo, "container test: systemd and daemon check skipped")
+	} else {
+		dockerEnabled := output("systemctl", "is-enabled", "docker.service") == "enabled"
+		dockerActive := output("systemctl", "is-active", "docker.service") == "active"
+		containerdEnabled := output("systemctl", "is-enabled", "containerd.service") == "enabled"
+		containerdActive := output("systemctl", "is-active", "containerd.service") == "active"
+		if dockerEnabled && dockerActive && containerdEnabled && containerdActive {
+			rp.add("docker:service", StatusOK, "docker and containerd enabled and active")
+		} else {
+			var bad []string
+			if !dockerEnabled || !dockerActive {
+				bad = append(bad, "docker")
+			}
+			if !containerdEnabled || !containerdActive {
+				bad = append(bad, "containerd")
+			}
+			rp.add("docker:service", StatusWarn, "%s not both enabled and active", strings.Join(bad, " and "))
+		}
+	}
+
+	user := output("id", "-un")
+	accountHasGroup := wordPresent(output("id", "-nG", user), "docker")
+	currentHasGroup := wordPresent(output("id", "-nG"), "docker")
+	if os.Getenv("BOOTSTRAP_TEST_NO_SYSTEMD") == "1" {
+		if accountHasGroup {
+			rp.add("docker:access", StatusInfo, "%s registered in docker group; daemon check skipped", user)
+		} else {
+			rp.add("docker:access", StatusWarn, "%s is not registered in the docker group", user)
+		}
+		return
+	}
+	if Which("docker") == "" {
+		rp.add("docker:access", StatusWarn, "docker CLI is not installed")
+		return
+	}
+	server := output("docker", "info", "--format", "{{.ServerVersion}}")
+	status, detail := dockerAccessResult(user, accountHasGroup, currentHasGroup, server)
+	rp.add("docker:access", status, "%s", detail)
+}
+
+func wordPresent(words, want string) bool {
+	for _, word := range strings.Fields(words) {
+		if word == want {
+			return true
+		}
+	}
+	return false
+}
+
+func dockerAccessResult(user string, accountHasGroup, currentHasGroup bool, server string) (Status, string) {
+	switch {
+	case !accountHasGroup:
+		return StatusWarn, fmt.Sprintf("%s is not in the docker group", user)
+	case !currentHasGroup:
+		return StatusWarn, "docker group registered but not active; run newgrp docker or log in again"
+	case server == "":
+		return StatusWarn, "docker daemon API is not reachable without sudo"
+	default:
+		return StatusOK, fmt.Sprintf("daemon %s reachable without sudo", server)
+	}
 }
 
 // ----------------------------------------------------------------------------

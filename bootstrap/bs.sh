@@ -195,6 +195,16 @@ next_steps() {
   * Start a new shell: exec zsh
   * Check the result:  $BOOTSTRAP_DIR/bs.sh doctor
 EOF
+  # `usermod -aG` updates the account database, but a child shell inherits the
+  # current process's supplementary groups. `exec zsh` alone therefore cannot
+  # activate Docker access; make that easy to notice after the first install.
+  if id -nG "$(id -un)" 2>/dev/null | tr ' ' '\n' | grep -qx docker \
+      && ! id -nG | tr ' ' '\n' | grep -qx docker; then
+    cat <<'EOF'
+  * Docker: run `newgrp docker`, or log out and back in, before using it
+    without sudo. Restart WSL if a normal logout does not refresh the group.
+EOF
+  fi
   if is_wsl; then
     cat <<'EOF'
   * WSL: Windows terminals do not read Linux-side fonts. Install Cica on the
