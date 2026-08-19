@@ -23,4 +23,3 @@
 # Bump a pinned ref with `bs.sh update`, review the diff, then commit.
 #
 # name	package	ref	bin
-codex	@openai/codex	latest	codex
