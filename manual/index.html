@@ -272,7 +272,7 @@ footer {
     <li><a href="#bootstrap">bootstrap リファレンス</a>
       <ul>
         <li><a href="#steps">step 一覧（28）</a></li>
-<li><a href="#doctor-rows">doctor の行（42）</a></li>
+        <li><a href="#doctor-rows">doctor の行（41）</a></li>
         <li><a href="#manifests">manifest の列仕様</a></li>
         <li><a href="#two-languages">なぜ shell と Go の二言語か</a></li>
       </ul>
@@ -549,7 +549,6 @@ bs.sh update --check               <span class="c"># 上流との差分だけ</s
     <tr><td class="mono-col">go</td><td><span class="badge norm">–</span></td><td>上流 tarball を <code>~/.local/go</code> へ。<code>~/.local/bin</code> に shim（apt のパッチ版はこちらの制御下にないので、完全一致する時だけ再利用）</td><td class="mono-col">steps/50-runtimes.sh</td></tr>
     <tr><td class="mono-col">node</td><td><span class="badge norm">–</span></td><td>nvm 経由。<strong><code>nvm alias default</code> を pin と一致させる</strong>のが要点</td><td class="mono-col">steps/50-runtimes.sh</td></tr>
     <tr><td class="mono-col">pnpm</td><td><span class="badge norm">–</span></td><td>pnpm 本体（corepack があればそれ経由）と、エディタが使う node ツール 3 つ（prettier, eslint_d, tree-sitter-cli）</td><td class="mono-col">steps/50-runtimes.sh</td></tr>
-    <tr><td class="mono-col">npm:codex</td><td><span class="badge norm">–</span></td><td><code>npm-globals.tsv</code> 1 行から生成される。<code>pnpm add -g</code> で <code>$PNPM_HOME</code> へ、node バージョンから独立させて入れる。<code>npm install -g</code> で入れると <code>$NVM_DIR</code> 配下に閉じ込められ、次の node bump で PATH から消える</td><td class="mono-col">steps/55-npm-globals.sh<br>+ npm-globals.tsv</td></tr>
     <tr><td class="mono-col">nvim</td><td><span class="badge norm">–</span></td><td>bob 経由で pin された Neovim</td><td class="mono-col">steps/60-neovim.sh</td></tr>
     <tr><td class="mono-col">nvim:plugins</td><td><span class="badge norm">–</span></td><td><code>lazy-lock.json</code> からプラグインを復元し、treesitter パーサーをビルドし、Mason に LSP を入れさせる。<strong>一番遅い</strong></td><td class="mono-col">steps/60-neovim.sh</td></tr>
     <tr><td class="mono-col">git:local</td><td><span class="badge norm">–</span></td><td>雛形から <code>git/config.local</code> を作る（既存は上書きしない）</td><td class="mono-col">steps/80-git.sh</td></tr>
@@ -559,7 +558,7 @@ bs.sh update --check               <span class="c"># 上流との差分だけ</s
 </table>
 </div>
 
-<h3 id="doctor-rows">doctor の行（42）</h3>
+<h3 id="doctor-rows">doctor の行（41）</h3>
 
 <p>
   <code>bs.sh doctor</code> は install とは<strong>別の実装</strong>（Go）でマシンを検査する。
@@ -607,7 +606,6 @@ bs.sh update --check               <span class="c"># 上流との差分だけ</s
     <tr><td class="mono-col">node:eslint_d</td><td rowspan="2">PATH にあるか、<strong>実際に動くか</strong>、そして単一の node バージョンのディレクトリの中にいないか（そこにあると次の node bump で消える）</td><td rowspan="2"><code>bs.sh --only pnpm</code>。<code>$PNPM_HOME/bin</code> に入れ直す</td></tr>
     <tr><td class="mono-col">node:prettier</td></tr>
     <tr><td class="mono-col">node:tree-sitter</td><td>同上。<strong>ここが「PATH にあるが動かない」と言う場合が最重要</strong>——パーサーが 1 つもビルドされない</td><td><code>bs.sh --only pnpm</code> が <code>--allow-build</code> 付きで入れ直す。<a href="#pitfalls">落とし穴 ①⑤</a></td></tr>
-    <tr><td class="mono-col">npm:codex</td><td><code>npm-globals.tsv</code> の pin と一致するか。加えて node:* 行と同じ3点(PATH にあるか、動くか、単一 node バージョンのディレクトリの中にいないか)も見る</td><td><code>bs.sh --only npm:codex</code> で <code>$PNPM_HOME</code> に入れ直す</td></tr>
     <tr><td class="mono-col">nvim</td><td>bob が入れた版が <code>runtimes.tsv</code> の pin と一致するか</td><td><code>bs.sh --only nvim</code></td></tr>
     <tr><td class="mono-col">nvim:plugins</td><td><code>$XDG_DATA_HOME/nvim/lazy/</code> のプラグイン数が <code>lazy-lock.json</code> の数に届いているか</td><td><code>bs.sh --only nvim:plugins</code></td></tr>
     <tr><td class="mono-col">nvim:parsers</td><td><code>$XDG_DATA_HOME/nvim/site/parser/*.so</code> の数が <code>config/treesitter-parsers.lua</code> の要求数に届いているか</td><td>まず <code>node:tree-sitter</code> 行を見る。直してから <code>bs.sh --only nvim:plugins</code></td></tr>
@@ -670,6 +668,7 @@ cd bootstrap/tool &amp;&amp; go test ./...   <span class="c"># manifest の形�
   依存しない)へ入れる——を、<strong><code>npm-globals.tsv</code> に 1 行足すだけ</strong>で
   使えるようにしたもの。<code>tools.tsv</code> と同じく step の登録・<code>--only</code> の ID・
   <code>doctor</code> の行・<code>update</code> 対応がそこから生成される。
+  データ行が 0 なら <code>npm:*</code> の step / doctor 行は無い（今のリポジトリはその状態）。
 </p>
 
 <div class="scroller">

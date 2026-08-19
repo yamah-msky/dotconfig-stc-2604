@@ -21,5 +21,6 @@
 #   bin      the binary name, when it differs from `name`
 #
 # Bump a pinned ref with `bs.sh update`, review the diff, then commit.
+# Zero data rows is valid: no npm:* steps or doctor rows until you add one.
 #
 # name	package	ref	bin

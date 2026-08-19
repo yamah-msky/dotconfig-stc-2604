@@ -1,7 +1,7 @@
 # bootstrap 早見表
 
 **詳細マニュアルは [`manual/index.html`](../manual/index.html) にあります**（ブラウザで開く）。
-step 28 個と `doctor` 42 行の全一覧、zsh / neovim / git の設計、落とし穴カタログはそちら。
+step 28 個と `doctor` 41 行の全一覧、zsh / neovim / git の設計、落とし穴カタログはそちら。
 このファイルは端末で `cat` する用の早見表で、設計の記録は [README.md](README.md)（英語）。
 
 ## 覚えるコマンドは 3 つ
@@ -50,7 +50,7 @@ bs.sh update --check            # 上流に遅れているものだけ表示
 | `locale` / `zdotdir` が FAIL | `bs.sh --only locale` / `--only zdotdir`（sudo 必要） |
 | `docker:access` が WARN | `bs.sh --only docker` 後なら `newgrp docker` または再ログイン。`docker` グループは root 相当権限を持つ |
 | プラグインが変わった | `bs.sh --only nvim:plugins` が lockfile の revision へ戻す |
-| `npm install -g` した CLI (codex 等) が消えた | node バージョン内に入っていて bump で PATH から外れただけ。`npm-globals.tsv` に一行足して `bs.sh --only npm:<name>` で `$PNPM_HOME` 配下に入れ直す |
+| `npm install -g` した CLI が消えた | node バージョン内に入っていて bump で PATH から外れただけ。`npm-globals.tsv` に一行足して `bs.sh --only npm:<name>` で `$PNPM_HOME` 配下に入れ直す |
 | 実行が途中で失敗した | 1 step の失敗で全体は止まらない。最後のサマリに再実行コマンドが出る |
 
 ## テスト

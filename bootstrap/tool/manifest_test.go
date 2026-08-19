@@ -76,9 +76,9 @@ func TestLoadRealManifests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("npm-globals.tsv: %v", err)
 	}
-	if len(npmGlobals) == 0 {
-		t.Fatal("npm-globals.tsv parsed to zero rows")
-	}
+	// Zero rows is valid: the file is a user-declared list, and an empty
+	// list means no npm:* steps or doctor rows. Duplicate names and empty
+	// fields are still errors when rows exist.
 	seenNpm := map[string]bool{}
 	for _, g := range npmGlobals {
 		if seenNpm[g.Name] {
@@ -131,7 +131,7 @@ func TestKnownAssetNames(t *testing.T) {
 
 	cases := map[string]string{
 		"eza":    "eza_x86_64-unknown-linux-gnu.tar.gz",
-		"fzf":    "fzf-0.74.2-linux_amd64.tar.gz",
+		"fzf":    "fzf-0.74.3-linux_amd64.tar.gz",
 		"zoxide": "zoxide-0.10.0-x86_64-unknown-linux-musl.tar.gz", // musl only; no gnu asset exists
 		"yazi":   "yazi-x86_64-unknown-linux-gnu.zip",
 		"bob":    "bob-linux-x86_64.zip",

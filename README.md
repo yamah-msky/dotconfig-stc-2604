@@ -54,7 +54,7 @@ bootstrap/bs.sh doctor    # where does this machine differ from the manifests?
 ### マニュアル
 
 - **[manual/index.html](manual/index.html)** — 詳細マニュアル。ブラウザで開く。
-  step 28 個と `doctor` 42 行の全一覧、zsh / neovim / git / tmux の設計、
+  step 28 個と `doctor` 41 行の全一覧、zsh / neovim / git / tmux の設計、
   トラブルシューティング、落とし穴カタログ
 - [bootstrap/MANUAL.md](bootstrap/MANUAL.md) — 端末用の早見表
 - [bootstrap/README.md](bootstrap/README.md) — 設計の記録（なぜこの構成なのか）
