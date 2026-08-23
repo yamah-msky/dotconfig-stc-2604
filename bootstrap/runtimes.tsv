@@ -11,7 +11,7 @@
 nvim	v0.12.4	0.12.0	bob
 node	24.19.0	20.0.0	nvm
 pnpm	11.22.0	9.0.0	get.pnpm.io
-go	1.26.6	1.22.0	go.dev tarball
+go	1.27.0	1.22.0	go.dev tarball
 rust	stable	1.85.0	rustup
 
 # Notes on the choices above:
