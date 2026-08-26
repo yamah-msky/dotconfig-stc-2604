@@ -5,6 +5,7 @@
 #
 #   ./container.sh          full run, including the neovim plugin restore
 #   ./container.sh --fast   skip nvim:plugins (minutes of compiling) while iterating
+#   ./container.sh --head   test the committed tree instead of tracked worktree files
 #   ./container.sh --shell  drop into a shell in the container instead of testing
 #
 # This is the only honest test of "would a fresh machine end up like this one".
@@ -12,9 +13,9 @@
 # that need root are genuinely exercised rather than skipped -- and it has no
 # /mnt/* and no WSL, so the WSL handling self-skips, which tests that path too.
 #
-# Only *tracked* files go in, piped through `git archive`. That is exactly what a
-# fresh clone would get, and it keeps everything untracked in ~/.config -- the gh
-# token, the Chrome profile, shell history -- out of the container entirely.
+# Only tracked files go in. By default their current worktree contents are used,
+# so a change can be tested before commit; --head reproduces an exact fresh clone.
+# Untracked tokens, browser profiles and shell history never enter the container.
 # =============================================================================
 
 set -euo pipefail
@@ -23,10 +24,12 @@ CONFIG_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMAGE=dotconfig-bootstrap-test
 MODE=full
 SKIP_ARG=""
+USE_HEAD=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --fast)  SKIP_ARG="--skip nvim:plugins"; shift ;;
+    --head)  USE_HEAD=1; shift ;;
     --shell) MODE=shell; shift ;;
     -h|--help) sed -n '3,20p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -35,11 +38,20 @@ done
 
 command -v docker >/dev/null || { echo "docker is required" >&2; exit 1; }
 
+archive_input() {
+  if [ "$USE_HEAD" = 1 ]; then
+    git -C "$CONFIG_DIR" archive HEAD
+    return
+  fi
+  git -C "$CONFIG_DIR" ls-files --cached -z \
+    | tar -C "$CONFIG_DIR" --null --ignore-failed-read -T - -cf -
+}
+
 echo "==> building $IMAGE"
 docker build -q -t "$IMAGE" -f "$CONFIG_DIR/bootstrap/test/Dockerfile" \
   "$CONFIG_DIR/bootstrap/test"
 
-# Everything below reads the repo from stdin as a tar stream of HEAD, unpacks it
+# Everything below reads the selected repository snapshot from stdin, unpacks it
 # into ~/.config, and makes it a git repo again so the "nothing was modified"
 # check has something to compare against.
 # Single-quoted: this runs inside the container, where $HOME is the container's.
@@ -56,17 +68,21 @@ git -C "$HOME/.config" -c user.email=t@example.com -c user.name=t \
 '
 
 if [ "$MODE" = shell ]; then
-  git -C "$CONFIG_DIR" archive HEAD \
+  archive_input \
     | exec docker run --rm -i -e BOOTSTRAP_TEST_NO_SYSTEMD=1 "$IMAGE" \
         bash -lc "$SEED"'; cd ~/.config; exec bash'
 fi
 
 echo "==> running bootstrap in a clean container"
-git -C "$CONFIG_DIR" archive HEAD \
+archive_input \
   | docker run --rm -i -e "SKIP_ARG=$SKIP_ARG" -e BOOTSTRAP_TEST_NO_SYSTEMD=1 \
       "$IMAGE" bash -lc "$SEED"'
 echo "--- bs.sh --dry-run (must change nothing) -------------------------------"
 "$HOME/.config/bootstrap/bs.sh" --dry-run >/dev/null || { echo "FAIL: dry run"; exit 1; }
+[ ! -e "$HOME/.local" ] || { echo "FAIL: dry run created ~/.local"; exit 1; }
+if find /tmp -maxdepth 1 -type d -name "dotconfig-bootstrap.*" | grep -q .; then
+  echo "FAIL: dry run left a temporary directory"; exit 1
+fi
 
 echo "--- bs.sh --dry-run --arch aarch64 (must skip, not fail) ----------------"
 "$HOME/.config/bootstrap/bs.sh" --dry-run --arch riscv64 >/dev/null \
@@ -106,6 +122,10 @@ if ! git -C "$HOME/.config" diff --quiet; then
   exit 1
 fi
 echo "OK: no tracked file was touched"
+if find /tmp -maxdepth 1 -type d -name "dotconfig-bootstrap.*" | grep -q .; then
+  echo "FAIL: bootstrap left a temporary directory"; exit 1
+fi
+echo "OK: temporary directories were cleaned"
 
 echo "--- zsh must start cleanly ---------------------------------------------"
 # "can.t change option: zle" comes from fzf.s zsh integration when there is no
@@ -128,7 +148,11 @@ done
 echo "OK: prompt, fuzzy finder, jump, ls, formatter and editor all resolve"
 
 echo "--- bs.sh doctor -------------------------------------------------------"
-"$HOME/.config/bootstrap/bs.sh" doctor
+if [ -n "$SKIP_ARG" ]; then
+  BOOTSTRAP_TEST_SKIP_NVIM_PLUGINS=1 "$HOME/.config/bootstrap/bs.sh" doctor
+else
+  "$HOME/.config/bootstrap/bs.sh" doctor
+fi
 exit $?
 '
 echo "==> container test finished"

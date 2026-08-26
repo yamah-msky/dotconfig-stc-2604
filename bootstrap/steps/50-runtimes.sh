@@ -101,19 +101,18 @@ step_go() {
 # reads $NVM_DIR/alias/default instead. So the alias has to be set, or that glob
 # silently picks a different version than the pin.
 step_node() {
-  local ref; ref=$(rt_ref node)
+  local ref nvm_ref; ref=$(rt_ref node); nvm_ref=$(rt_ref nvm)
 
-  if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+  if [ ! -d "$NVM_DIR/.git" ]; then
     info "cloning nvm into $NVM_DIR"
-    if [ -d "$NVM_DIR/.git" ]; then
-      run git -C "$NVM_DIR" fetch --tags -q origin
-    else
-      run git clone -q https://github.com/nvm-sh/nvm.git "$NVM_DIR"
-    fi
-    if [ "${DRY_RUN:-0}" != 1 ]; then
-      local tag; tag=$(git -C "$NVM_DIR" describe --abbrev=0 --tags 2>/dev/null)
-      [ -n "$tag" ] && git -C "$NVM_DIR" checkout -q "$tag"
-    fi
+    run git clone -q https://github.com/nvm-sh/nvm.git "$NVM_DIR"
+  fi
+  if [ "${DRY_RUN:-0}" = 1 ]; then
+    dry "git -C $NVM_DIR fetch origin tag $nvm_ref && checkout $nvm_ref"
+  elif [ "$(git -C "$NVM_DIR" describe --tags --exact-match 2>/dev/null || true)" != "$nvm_ref" ]; then
+    info "pinning nvm at $nvm_ref"
+    git -C "$NVM_DIR" fetch -q origin "tag" "$nvm_ref" || return 1
+    git -C "$NVM_DIR" checkout -q "$nvm_ref" || return 1
   fi
 
   if [ "${DRY_RUN:-0}" = 1 ]; then
@@ -170,6 +169,15 @@ step_pnpm() {
     run _pnpm_install
     # The installer creates $PNPM_HOME, which therefore was not on PATH when the
     # run started -- without this, the node-tools step below cannot see pnpm.
+    path_refresh
+  fi
+
+  # The shim lives in PNPM_HOME but points into the active Node installation.
+  # Refresh it after every Node bump so removing an old nvm version cannot leave
+  # a dangling, apparently version-independent pnpm command.
+  if has corepack; then
+    run mkdir -p "$PNPM_HOME/bin"
+    run corepack enable pnpm --install-directory "$PNPM_HOME/bin"
     path_refresh
   fi
 

@@ -28,9 +28,11 @@ const (
 )
 
 type Result struct {
-	ID     string `json:"id"`
-	Status Status `json:"status"`
-	Detail string `json:"detail"`
+	ID          string `json:"id"`
+	Status      Status `json:"status"`
+	Detail      string `json:"detail"`
+	Code        string `json:"code,omitempty"`
+	Remediation string `json:"remediation,omitempty"`
 }
 
 // Bad reports whether a result should make doctor exit non-zero. INFO never does.
@@ -39,7 +41,14 @@ func (r Result) Bad() bool { return r.Status == StatusWarn || r.Status == Status
 type report struct{ results []Result }
 
 func (rp *report) add(id string, s Status, format string, args ...any) {
-	rp.results = append(rp.results, Result{id, s, fmt.Sprintf(format, args...)})
+	rp.results = append(rp.results, Result{ID: id, Status: s, Detail: fmt.Sprintf(format, args...)})
+}
+
+func (rp *report) addFix(id string, s Status, code, remediation, format string, args ...any) {
+	rp.results = append(rp.results, Result{
+		ID: id, Status: s, Detail: fmt.Sprintf(format, args...),
+		Code: code, Remediation: remediation,
+	})
 }
 
 func Doctor(e *Env, asJSON bool) int {
@@ -54,6 +63,7 @@ func Doctor(e *Env, asJSON bool) int {
 	checkTools(e, rp)
 	checkRust(e, rp)
 	checkGo(e, rp)
+	checkNvm(e, rp)
 	checkNode(e, rp)
 	checkPnpm(e, rp)
 	checkNpmGlobals(e, rp)
@@ -220,9 +230,9 @@ func checkDocker(e *Env, rp *report) {
 		rp.add("docker:packages", StatusWarn, "packages installed but Docker apt repository is missing")
 	case !key:
 		rp.add("docker:packages", StatusWarn, "Docker apt source has no readable Signed-By key")
-	case exec.Command("docker", "buildx", "version").Run() != nil:
+	case !commandRuns("docker", "buildx", "version"):
 		rp.add("docker:packages", StatusWarn, "Buildx plugin does not run")
-	case exec.Command("docker", "compose", "version").Run() != nil:
+	case !commandRuns("docker", "compose", "version"):
 		rp.add("docker:packages", StatusWarn, "Compose plugin does not run")
 	default:
 		rp.add("docker:packages", StatusOK, "Engine, CLI, containerd, Buildx and Compose installed")
@@ -245,7 +255,9 @@ func checkDocker(e *Env, rp *report) {
 			if !containerdEnabled || !containerdActive {
 				bad = append(bad, "containerd")
 			}
-			rp.add("docker:service", StatusWarn, "%s not both enabled and active", strings.Join(bad, " and "))
+			rp.addFix("docker:service", StatusWarn, "service_inactive",
+				"run: sudo systemctl enable --now docker.service containerd.service",
+				"%s not both enabled and active", strings.Join(bad, " and "))
 		}
 	}
 
@@ -266,7 +278,12 @@ func checkDocker(e *Env, rp *report) {
 	}
 	server := output("docker", "info", "--format", "{{.ServerVersion}}")
 	status, detail := dockerAccessResult(user, accountHasGroup, currentHasGroup, server)
-	rp.add("docker:access", status, "%s", detail)
+	if status == StatusWarn && accountHasGroup && !currentHasGroup {
+		rp.addFix("docker:access", status, "group_not_active",
+			"run newgrp docker, or log out and back in", "%s", detail)
+	} else {
+		rp.add("docker:access", status, "%s", detail)
+	}
 }
 
 func wordPresent(words, want string) bool {
@@ -434,6 +451,24 @@ func checkGo(e *Env, rp *report) {
 	}
 }
 
+func checkNvm(e *Env, rp *report) {
+	r, ok := e.Runtimes["nvm"]
+	if !ok {
+		return
+	}
+	if !fileExists(filepath.Join(e.NvmDir, ".git")) {
+		rp.add("nvm", StatusWarn, "not installed (pinned %s)", r.Ref)
+		return
+	}
+	cur := output("git", "-C", e.NvmDir, "describe", "--tags", "--exact-match")
+	if cur == r.Ref {
+		rp.add("nvm", StatusOK, "%s", cur)
+	} else {
+		rp.addFix("nvm", StatusWarn, "version_mismatch", "run: bs.sh --only node",
+			"pinned %s, installed %s", r.Ref, cur)
+	}
+}
+
 // zsh/.zshenv finds node by globbing $NVM_DIR/versions/node/v<alias>*/bin rather
 // than sourcing nvm.sh, so the default alias has to agree with the pin. When it
 // does not, new shells quietly get a different node than the one running here.
@@ -557,38 +592,40 @@ func checkNvim(e *Env, rp *report) {
 		rp.add("nvim", StatusWarn, "pinned %s, installed %s", strings.TrimPrefix(r.Ref, "v"), cur)
 	}
 
-	// Plugins: the lockfile is the desired state.
 	lock := filepath.Join(e.ConfigDir, "nvim", "lazy-lock.json")
-	var locked map[string]any
-	if b, err := os.ReadFile(lock); err == nil {
-		_ = json.Unmarshal(b, &locked)
-	}
-	installed, _ := filepath.Glob(filepath.Join(e.XDGData, "nvim", "lazy", "*"))
-	switch {
-	case len(locked) == 0:
-		rp.add("nvim:plugins", StatusWarn, "lazy-lock.json missing or unreadable")
-	case len(installed) == 0:
-		rp.add("nvim:plugins", StatusWarn, "no plugins installed (%d in the lockfile)", len(locked))
-	case len(installed) < len(locked):
-		rp.add("nvim:plugins", StatusWarn, "%d of %d plugins installed", len(installed), len(locked))
-	default:
-		rp.add("nvim:plugins", StatusOK, "%d plugins", len(installed))
-	}
+	if os.Getenv("BOOTSTRAP_TEST_SKIP_NVIM_PLUGINS") == "1" {
+		rp.add("nvim:plugins", StatusInfo, "skipped by the fast container test")
+		rp.add("nvim:parsers", StatusInfo, "skipped by the fast container test")
+	} else {
+		// Plugins: the lockfile is the desired state.
+		var locked map[string]any
+		if b, err := os.ReadFile(lock); err == nil {
+			_ = json.Unmarshal(b, &locked)
+		}
+		installed, _ := filepath.Glob(filepath.Join(e.XDGData, "nvim", "lazy", "*"))
+		switch {
+		case len(locked) == 0:
+			rp.add("nvim:plugins", StatusWarn, "lazy-lock.json missing or unreadable")
+		case len(installed) == 0:
+			rp.add("nvim:plugins", StatusWarn, "no plugins installed (%d in the lockfile)", len(locked))
+		case len(installed) < len(locked):
+			rp.add("nvim:plugins", StatusWarn, "%d of %d plugins installed", len(installed), len(locked))
+		default:
+			rp.add("nvim:plugins", StatusOK, "%d plugins", len(installed))
+		}
 
-	// Parsers are a separate row on purpose. nvim-treesitter's rewritten branch
-	// shells out to `tree-sitter build`; when that binary is absent every build
-	// fails while the plugin tree still looks complete, so counting plugins alone
-	// reported a healthy editor with no syntax highlighting at all.
-	parsers, _ := filepath.Glob(filepath.Join(e.XDGData, "nvim", "site", "parser", "*.so"))
-	wantParsers := countParserList(filepath.Join(e.ConfigDir, "nvim", "lua", "config", "treesitter-parsers.lua"))
-	switch {
-	case len(parsers) == 0:
-		rp.add("nvim:parsers", StatusWarn,
-			"none built (check the node:tree-sitter row, then bs.sh --only nvim:plugins)")
-	case wantParsers > 0 && len(parsers) < wantParsers:
-		rp.add("nvim:parsers", StatusWarn, "%d built, %d requested", len(parsers), wantParsers)
-	default:
-		rp.add("nvim:parsers", StatusOK, "%d parsers", len(parsers))
+		// Parsers are separate: a complete plugin tree can still have none built.
+		parsers, _ := filepath.Glob(filepath.Join(e.XDGData, "nvim", "site", "parser", "*.so"))
+		wantParsers := countParserList(filepath.Join(e.ConfigDir, "nvim", "lua", "config", "treesitter-parsers.lua"))
+		switch {
+		case len(parsers) == 0:
+			rp.add("nvim:parsers", StatusWarn,
+				"none built (check the node:tree-sitter row, then bs.sh --only nvim:plugins)")
+		case wantParsers > 0 && len(parsers) < wantParsers:
+			rp.add("nvim:parsers", StatusWarn, "%d built, %d requested", len(parsers), wantParsers)
+		default:
+			rp.add("nvim:parsers", StatusOK, "%d parsers", len(parsers))
+		}
 	}
 
 	// The binaries conform.nvim and nvim-lint invoke by name. Which package

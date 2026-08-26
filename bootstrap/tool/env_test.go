@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // The distinction Which cannot make: a wrapper script whose native binary was
@@ -38,5 +39,19 @@ func TestRuns(t *testing.T) {
 	}
 	if Which("brokentool") == "" {
 		t.Error("Which(brokentool) = \"\"; the fixture is meant to be found on PATH")
+	}
+}
+
+func TestCommandTimeout(t *testing.T) {
+	old := localCommandTimeout
+	localCommandTimeout = 25 * time.Millisecond
+	t.Cleanup(func() { localCommandTimeout = old })
+
+	start := time.Now()
+	if commandRuns("sh", "-c", "sleep 2") {
+		t.Fatal("timed-out command unexpectedly succeeded")
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("timeout took too long: %s", elapsed)
 	}
 }

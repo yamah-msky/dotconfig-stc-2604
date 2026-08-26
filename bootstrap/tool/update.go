@@ -9,9 +9,28 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
+)
+
+type manifestChange struct {
+	label    string
+	file     string
+	key      string
+	column   int
+	from, to string
+}
+
+// Resolver variables keep Update deterministic under test without changing its
+// production API or requiring network access.
+var (
+	resolveLatestRelease = LatestReleaseTag
+	resolveLatestNode    = LatestNodeLTS
+	resolveLatestPnpm    = LatestPnpm
+	resolveLatestGo      = LatestGo
+	resolveLatestNpm     = LatestNpmPackage
+	resolveRemoteHead    = RemoteHead
 )
 
 func Update(e *Env, only []string, check bool) int {
@@ -36,47 +55,43 @@ func Update(e *Env, only []string, check bool) int {
 		if !selected(t.Name) || t.Floating() {
 			continue
 		}
-		jobs["tool:"+t.Name] = func() (string, error) { return LatestReleaseTag(t.Repo) }
+		jobs["tool:"+t.Name] = func() (string, error) { return resolveLatestRelease(t.Repo) }
 	}
 	for _, g := range e.NpmGlobals {
 		g := g
 		if !selected(g.Name) || g.Floating() {
 			continue
 		}
-		jobs["npm:"+g.Name] = func() (string, error) { return LatestNpmPackage(g.Package) }
+		jobs["npm:"+g.Name] = func() (string, error) { return resolveLatestNpm(g.Package) }
 	}
 	if selected("nvim") {
-		jobs["rt:nvim"] = func() (string, error) { return LatestReleaseTag("neovim/neovim") }
+		jobs["rt:nvim"] = func() (string, error) { return resolveLatestRelease("neovim/neovim") }
+	}
+	if selected("nvm") {
+		jobs["rt:nvm"] = func() (string, error) { return resolveLatestRelease("nvm-sh/nvm") }
 	}
 	if selected("node") {
-		jobs["rt:node"] = LatestNodeLTS
+		jobs["rt:node"] = resolveLatestNode
 	}
 	if selected("pnpm") {
-		jobs["rt:pnpm"] = LatestPnpm
+		jobs["rt:pnpm"] = resolveLatestPnpm
 	}
 	if selected("go") {
-		jobs["rt:go"] = LatestGo
+		jobs["rt:go"] = resolveLatestGo
 	}
 	for _, p := range e.Plugins {
 		p := p
 		if !selected("sheldon") && !selected(p.Short()) {
 			continue
 		}
-		jobs["plugin:"+p.Repo] = func() (string, error) { return RemoteHead(p.Repo) }
+		jobs["plugin:"+p.Repo] = func() (string, error) { return resolveRemoteHead(p.Repo) }
 	}
 
 	got := resolveAll(jobs)
 
-	// changes are applied after every lookup is in, so a partial network failure
-	// cannot leave the manifests half-bumped.
-	type change struct {
-		label    string
-		file     string
-		key      string
-		column   int
-		from, to string
-	}
-	var changes []change
+	// Resolve and validate everything before writing anything. A partial network
+	// failure must not produce a manifest assembled from different update runs.
+	var changes []manifestChange
 	var problems []string
 
 	// tools.tsv, in manifest order rather than map order.
@@ -99,7 +114,7 @@ func Update(e *Env, only []string, check bool) int {
 			skipf("%-12s %s", t.Name, t.Ref)
 			continue
 		}
-		changes = append(changes, change{t.Name, "tools.tsv", t.Name, 2, t.Ref, r.latest})
+		changes = append(changes, manifestChange{t.Name, "tools.tsv", t.Name, 2, t.Ref, r.latest})
 	}
 
 	// npm-globals.tsv, in manifest order.
@@ -122,11 +137,11 @@ func Update(e *Env, only []string, check bool) int {
 			skipf("%-12s %s", g.Name, g.Ref)
 			continue
 		}
-		changes = append(changes, change{g.Name, "npm-globals.tsv", g.Name, 3, g.Ref, r.latest})
+		changes = append(changes, manifestChange{g.Name, "npm-globals.tsv", g.Name, 3, g.Ref, r.latest})
 	}
 
 	// runtimes.tsv. rust tracks stable on purpose and is never bumped.
-	for _, name := range []string{"nvim", "node", "pnpm", "go"} {
+	for _, name := range []string{"nvim", "nvm", "node", "pnpm", "go"} {
 		rt, ok := e.Runtimes[name]
 		if !ok {
 			continue
@@ -143,27 +158,14 @@ func Update(e *Env, only []string, check bool) int {
 			skipf("%-12s %s", name, rt.Ref)
 			continue
 		}
-		changes = append(changes, change{name, "runtimes.tsv", name, 2, rt.Ref, r.latest})
+		changes = append(changes, manifestChange{name, "runtimes.tsv", name, 2, rt.Ref, r.latest})
 	}
 	if rt, ok := e.Runtimes["rust"]; ok && selected("rust") {
 		skipf("%-12s %s (tracks upstream by design)", "rust", rt.Ref)
 	}
 
-	// Report and apply the TSV edits.
-	for _, c := range changes {
-		infof("%-12s %s -> %s", c.label, c.from, c.to)
-	}
-	if !check {
-		for _, c := range changes {
-			if err := setTSVField(filepath.Join(e.BootstrapDir, c.file), c.key, c.column, c.to); err != nil {
-				errf("%s: %v", c.file, err)
-				return 1
-			}
-		}
-	}
-
-	// sheldon plugin revisions live in plugins.toml, not a TSV.
-	pluginChanges := 0
+	// Work out plugin edits before crossing the mutation boundary as well.
+	pluginRevs := map[string]string{}
 	for _, p := range e.Plugins {
 		r, ok := got["plugin:"+p.Repo]
 		if !ok {
@@ -178,12 +180,26 @@ func Update(e *Env, only []string, check bool) int {
 			continue
 		}
 		infof("%-12s %s -> %s", p.Short(), short(p.Rev), short(r.latest))
-		pluginChanges++
-		if !check {
-			if err := setPluginRev(e, p.Repo, r.latest); err != nil {
-				errf("plugins.toml: %v", err)
-				return 1
-			}
+		pluginRevs[p.Repo] = r.latest
+	}
+
+	// Report proposed TSV edits.
+	for _, c := range changes {
+		infof("%-12s %s -> %s", c.label, c.from, c.to)
+	}
+
+	for _, p := range problems {
+		warnf("%s", p)
+	}
+	if len(problems) > 0 {
+		warnf("nothing was written because one or more versions could not be resolved")
+		return 1
+	}
+
+	if !check {
+		if err := applyManifestChanges(e, changes, pluginRevs); err != nil {
+			errf("applying manifest updates: %v", err)
+			return 1
 		}
 	}
 
@@ -197,12 +213,10 @@ func Update(e *Env, only []string, check bool) int {
 			skipf("nvim plugins (run without --check to update lazy-lock.json)")
 		default:
 			infof("updating nvim plugins via lazy.nvim")
-			cmd := exec.Command("nvim", "--headless", "+Lazy! update", "+qa")
-			if err := cmd.Run(); err != nil {
-				problems = append(problems, fmt.Sprintf("nvim plugin update: %v", err))
+			if !commandRunsTimeout(10*time.Minute, "nvim", "--headless", "+Lazy! update", "+qa") {
+				problems = append(problems, "nvim plugin update failed or timed out")
 			}
-			lock := exec.Command("git", "-C", e.ConfigDir, "diff", "--quiet", "--", "nvim/lazy-lock.json")
-			if lock.Run() != nil {
+			if !commandRuns("git", "-C", e.ConfigDir, "diff", "--quiet", "--", "nvim/lazy-lock.json") {
 				nvimChanged = true
 				infof("lazy-lock.json updated")
 			} else {
@@ -210,12 +224,11 @@ func Update(e *Env, only []string, check bool) int {
 			}
 		}
 	}
-
 	for _, p := range problems {
 		warnf("%s", p)
 	}
 
-	total := len(changes) + pluginChanges
+	total := len(changes) + len(pluginRevs)
 	fmt.Println()
 	if total == 0 && !nvimChanged {
 		okf("everything is already at the latest version")
@@ -235,7 +248,10 @@ func Update(e *Env, only []string, check bool) int {
       git -C %s diff
       git -C %s commit -am 'Bump pins'
       %s
-`, e.ConfigDir, e.ConfigDir, filepath.Join(e.BootstrapDir, "bs.sh"))
+	`, e.ConfigDir, e.ConfigDir, filepath.Join(e.BootstrapDir, "bs.sh"))
+	if len(problems) > 0 {
+		return 1
+	}
 	return 0
 }
 
@@ -250,16 +266,12 @@ func short(sha string) string {
 // comments, blank lines, spacing and -- critically -- the column count. A
 // whole-file substitution would be far shorter and would silently corrupt a
 // column the moment a version string appeared anywhere else.
-func setTSVField(path, key string, column int, value string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
+func renderTSVChanges(path string, content []byte, changes []manifestChange) (string, error) {
 	var out []string
-	found := false
+	found := make(map[string]bool, len(changes))
 	wantFields := -1
 
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(strings.NewReader(string(content)))
 	for sc.Scan() {
 		line := sc.Text()
 		trimmed := strings.TrimSpace(line)
@@ -271,59 +283,97 @@ func setTSVField(path, key string, column int, value string) error {
 		if wantFields == -1 {
 			wantFields = len(fields)
 		} else if len(fields) != wantFields {
-			f.Close()
-			return fmt.Errorf("%s: row %q has %d fields, expected %d",
+			return "", fmt.Errorf("%s: row %q has %d fields, expected %d",
 				filepath.Base(path), fields[0], len(fields), wantFields)
 		}
-		if fields[0] == key {
-			if column < 1 || column > len(fields) {
-				f.Close()
-				return fmt.Errorf("column %d out of range for row %q", column, key)
+		for _, c := range changes {
+			if fields[0] != c.key {
+				continue
 			}
-			fields[column-1] = value
-			found = true
+			if c.column < 1 || c.column > len(fields) {
+				return "", fmt.Errorf("column %d out of range for row %q", c.column, c.key)
+			}
+			fields[c.column-1] = c.to
+			found[c.key] = true
 		}
 		out = append(out, strings.Join(fields, "\t"))
 	}
 	if err := sc.Err(); err != nil {
-		f.Close()
-		return err
+		return "", err
 	}
-	f.Close()
-	if !found {
-		return fmt.Errorf("no row named %q in %s", key, filepath.Base(path))
+	for _, c := range changes {
+		if !found[c.key] {
+			return "", fmt.Errorf("no row named %q in %s", c.key, filepath.Base(path))
+		}
 	}
-
-	// Write via a temporary file in the same directory, then rename, so an
-	// interrupted update cannot leave a truncated manifest behind.
-	return writeAtomic(path, strings.Join(out, "\n")+"\n")
+	return strings.Join(out, "\n") + "\n", nil
 }
 
 // setPluginRev replaces the rev of one [plugins.*] block. Matching is positional
 // -- the rev belongs to the most recent github line -- because that is how the
 // file is written and it avoids pulling in a TOML parser.
-func setPluginRev(e *Env, repo, newRev string) error {
-	path := filepath.Join(e.ConfigDir, "sheldon", "plugins.toml")
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	lines := strings.Split(string(b), "\n")
+func renderPluginRevs(content []byte, revisions map[string]string) (string, error) {
+	lines := strings.Split(string(content), "\n")
 	current := ""
-	replaced := false
+	replaced := map[string]bool{}
 	for i, line := range lines {
 		switch {
 		case strings.HasPrefix(line, "github = "):
 			current = unquote(strings.TrimPrefix(line, "github = "))
-		case strings.HasPrefix(line, "rev = ") && current == repo:
-			lines[i] = fmt.Sprintf("rev = %q", newRev)
-			replaced = true
+		case strings.HasPrefix(line, "rev = "):
+			if rev, ok := revisions[current]; ok {
+				lines[i] = fmt.Sprintf("rev = %q", rev)
+				replaced[current] = true
+			}
 		}
 	}
-	if !replaced {
-		return fmt.Errorf("no rev line found for %s", repo)
+	for repo := range revisions {
+		if !replaced[repo] {
+			return "", fmt.Errorf("no rev line found for %s", repo)
+		}
 	}
-	return writeAtomic(path, strings.Join(lines, "\n"))
+	return strings.Join(lines, "\n"), nil
+}
+
+// applyManifestChanges pre-renders every affected file before the first write,
+// then writes each file once. This catches malformed rows without leaving a
+// subset of the requested changes behind.
+func applyManifestChanges(e *Env, changes []manifestChange, pluginRevs map[string]string) error {
+	byFile := map[string][]manifestChange{}
+	for _, c := range changes {
+		byFile[c.file] = append(byFile[c.file], c)
+	}
+	rendered := map[string]string{}
+	for file, cs := range byFile {
+		path := filepath.Join(e.BootstrapDir, file)
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		content, err := renderTSVChanges(path, b, cs)
+		if err != nil {
+			return err
+		}
+		rendered[path] = content
+	}
+	if len(pluginRevs) > 0 {
+		path := filepath.Join(e.ConfigDir, "sheldon", "plugins.toml")
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		content, err := renderPluginRevs(b, pluginRevs)
+		if err != nil {
+			return err
+		}
+		rendered[path] = content
+	}
+	for path, content := range rendered {
+		if err := writeAtomic(path, content); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func writeAtomic(path, content string) error {

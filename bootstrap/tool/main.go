@@ -21,7 +21,7 @@ const usage = `Usage: bstool <doctor|update> [options]
   update [name...]  bump pinned versions; with no names, everything
 
 Options
-  --check           update only: report what is behind, write nothing
+  --check           update only: check manifest pins; lazy-lock is not queried
   --json            doctor only: machine-readable output
   -h, --help
 `

@@ -133,7 +133,8 @@ cmd_install() {
   local id rc ran=0
   local -a failed=() skipped=() rootless=()
 
-  mkdir -p "$LOCAL_BIN" "$FONT_DIR"
+  tmp_init || die "could not create the run's temporary directory"
+  run mkdir -p "$LOCAL_BIN" "$FONT_DIR"
 
   for id in "${STEP_IDS[@]}"; do
     selected "$id" || continue
@@ -257,7 +258,8 @@ bstool() {
       err "Run: $BOOTSTRAP_DIR/bs.sh --only go"
       return 1
     fi
-    info "building the doctor/update tool"
+    # Keep stdout clean for `doctor --json`; build progress is diagnostic.
+    info "building the doctor/update tool" >&2
     mkdir -p "${BSTOOL%/*}"
     ( cd "$src" && go build -o "$BSTOOL" . ) || { err "failed to build $src"; return 1; }
   fi

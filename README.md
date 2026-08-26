@@ -6,24 +6,17 @@
 
 ### Installation
 
-Firstly, install zsh (run `sudo apt install zsh` or something else) and change your default shell to the zsh (consider to run `chsh -s /bin/zsh`).
-
-Next add below to the bottom of `/etc/zsh/zshenv`
-```zshenv
-ZDOTDIR=$HOME/.config/zsh
-```
-
-Then run `cd $HOME/.config` on your shell to move to the working dir.
-
-After setting up ssh for your github account, run some commands below.
-
-Do not forget to save backups like what you want.
+Install Git, back up any existing configuration you want to keep, then fetch the
+repository. The bootstrap installs zsh, configures `ZDOTDIR`, and changes the
+login shell; those steps do not need to be performed manually.
 
 ```sh
+mkdir -p "$HOME/.config"
+cd "$HOME/.config"
 git init
-git remote add origin git@github.com:mbyamaguchi/dotconfig-stc.git
-git checkout main
-git fetch
+git remote add origin git@github.com:yamah-msky/dotconfig-stc-2604.git
+git fetch origin
+git checkout -B main origin/main
 ```
 
 Finally, run the bootstrap:
@@ -50,6 +43,9 @@ bootstrap/bs.sh           # install it
 ```sh
 bootstrap/bs.sh doctor    # where does this machine differ from the manifests?
 ```
+
+`doctor --json` also emits diagnostic codes and remediation text for callers
+that want to automate repairs.
 
 ### マニュアル
 

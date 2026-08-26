@@ -5,12 +5,14 @@ package main
 // is one authority for them.
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 type Env struct {
@@ -121,7 +123,7 @@ func Which(bin string) string {
 // executable file that fails on every call. Only for tools whose --version is
 // cheap and side-effect free.
 func Runs(bin string) bool {
-	return exec.Command(bin, "--version").Run() == nil
+	return commandRuns(bin, "--version")
 }
 
 func envOr(key, fallback string) string {
@@ -144,10 +146,48 @@ func isWSL() bool {
 // output runs a command and returns its combined output, trimmed. Errors are
 // folded into the empty string: every caller here treats "could not determine"
 // and "failed" the same way.
-func output(name string, args ...string) string {
-	out, err := exec.Command(name, args...).Output()
+var localCommandTimeout = 8 * time.Second
+
+func commandOutputTimeout(timeout time.Duration, name string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	// A killed shell can leave a grandchild holding the output pipe open. Do not
+	// let that defeat the context deadline while os/exec waits for EOF.
+	cmd.WaitDelay = 100 * time.Millisecond
+	out, err := cmd.Output()
 	if err != nil {
-		return ""
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("%s timed out after %s", name, timeout)
+		}
+		return "", err
 	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func commandOutput(name string, args ...string) (string, error) {
+	return commandOutputTimeout(localCommandTimeout, name, args...)
+}
+
+func commandCombinedOutput(name string, args ...string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), localCommandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = 100 * time.Millisecond
+	out, _ := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out))
+}
+
+func commandRuns(name string, args ...string) bool {
+	return commandRunsTimeout(localCommandTimeout, name, args...)
+}
+
+func commandRunsTimeout(timeout time.Duration, name string, args ...string) bool {
+	_, err := commandOutputTimeout(timeout, name, args...)
+	return err == nil
+}
+
+func output(name string, args ...string) string {
+	out, _ := commandOutput(name, args...)
+	return out
 }

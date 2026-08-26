@@ -20,8 +20,8 @@ step 28 個と `doctor` 41 行の全一覧、zsh / neovim / git の設計、落�
 ```sh
 sudo apt update && sudo apt install -y git zsh
 cd "$HOME/.config" && git init
-git remote add origin git@github.com:mbyamaguchi/dotconfig-stc.git
-git fetch && git checkout main
+git remote add origin git@github.com:yamah-msky/dotconfig-stc-2604.git
+git fetch origin && git checkout -B main origin/main
 ./bootstrap/bs.sh        # sudo は最初に 1 度だけ聞かれる。10〜20 分
 # 初回だけログアウト/再ログイン（または newgrp docker）して Docker 権限を反映
 exec zsh
@@ -57,5 +57,5 @@ bs.sh update --check            # 上流に遅れているものだけ表示
 
 ```sh
 bootstrap/test/lint.sh         # bash -n / shellcheck / gofmt / go vet / go test
-bootstrap/test/container.sh    # クリーンな ubuntu:26.04 でフル実走（--fast で高速化）
+bootstrap/test/container.sh    # 追跡中の作業ツリーを実走（--fast / --head も利用可能）
 ```

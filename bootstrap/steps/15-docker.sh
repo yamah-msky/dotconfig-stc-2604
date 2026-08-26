@@ -76,7 +76,7 @@ docker_configure_repo() {
       "Signed-By: $DOCKER_KEYRING" >"$tmp/docker.sources"
     run_sudo install -m 0644 "$tmp/docker.sources" "$DOCKER_SOURCE"
   fi
-  _APT_UPDATED=0
+  apt_invalidate
 }
 
 docker_install_packages() {

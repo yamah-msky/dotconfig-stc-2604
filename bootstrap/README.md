@@ -54,7 +54,7 @@ bs.sh             the driver: argument parsing, step dispatch, install
 lib.sh            everything the steps share (logging, versions, downloads, PATH)
 tools.tsv         prebuilt binaries from GitHub releases -> ~/.local/bin
 apt.tsv           apt package set, by group
-runtimes.tsv      nvim / node / pnpm / go / rust, each via its own manager
+runtimes.tsv      nvim / nvm / node / pnpm / go / rust, via their managers
 npm-globals.tsv   npm/pnpm global CLIs -> $PNPM_HOME, independent of nvm's node
 steps/*.sh        one file per concern, run in filename order
 tool/             doctor and update, in Go (see below)
@@ -185,7 +185,8 @@ finish the job later. The locale step also has a rootless path: it compiles into
 bootstrap/test/lint.sh             # bash -n, shellcheck, gofmt, go vet, go test
 bs.sh --dry-run                    # prints every mutation, performs none
 bs.sh --dry-run --arch riscv64     # unsupported arch must skip, not fail
-bootstrap/test/container.sh        # the real one; --fast skips the nvim plugins
+bootstrap/test/container.sh        # tracked worktree; --fast skips nvim plugins
+bootstrap/test/container.sh --head # exact committed-tree reproduction
 ```
 
 `lint.sh` falls back to shellcheck's container image when shellcheck is not
@@ -202,11 +203,12 @@ itself instead. Use them for anything installed as a wrapper around a downloaded
 binary, and prefer counting a step's output — `.so` files built — over trusting
 the exit status of a command that logs its failure and exits 0 anyway.
 
-`container.sh` pipes `git archive HEAD` into a clean `ubuntu:26.04` with a
+`container.sh` sends the tracked worktree into a clean `ubuntu:26.04` with a
 sudo-capable non-root user, runs the bootstrap, and then checks that a second run
 downloads nothing, that no tracked file was modified, that zsh starts silently,
 and that `doctor` passes. Only tracked files go in, so nothing untracked in
-`~/.config` — the gh token, shell history — reaches the container.
+`~/.config` — the gh token, shell history — reaches the container. Pass `--head`
+to test the exact committed tree instead.
 The container has no systemd as PID 1, so it exercises Docker's repository,
 packages, plugins and group setup but explicitly marks only the service/daemon
 probe as INFO; that probe is mandatory on a live host.

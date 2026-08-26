@@ -9,6 +9,7 @@ package main
 // of pure waiting.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -42,7 +43,9 @@ func httpGet(url string) ([]byte, error) {
 // 60 shared per IP, which matters when resolving a dozen repositories at once.
 func LatestReleaseTag(repo string) (string, error) {
 	if Which("gh") != "" {
-		out, err := exec.Command("gh", "api", "repos/"+repo+"/releases/latest", "--jq", ".tag_name").Output()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		out, err := exec.CommandContext(ctx, "gh", "api", "repos/"+repo+"/releases/latest", "--jq", ".tag_name").Output()
+		cancel()
 		if err == nil {
 			if tag := strings.TrimSpace(string(out)); tag != "" {
 				return tag, nil
@@ -147,7 +150,9 @@ func LatestGo() (string, error) {
 // RemoteHead is the commit a branchless `git ls-remote HEAD` reports, used for
 // the sheldon plugin pins.
 func RemoteHead(repo string) (string, error) {
-	out, err := exec.Command("git", "ls-remote", "https://github.com/"+repo, "HEAD").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "git", "ls-remote", "https://github.com/"+repo, "HEAD").Output()
 	if err != nil {
 		return "", err
 	}

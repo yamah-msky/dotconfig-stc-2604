@@ -11,7 +11,6 @@ package main
 //     somebody else's version on the second.
 
 import (
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -51,8 +50,7 @@ func InstalledVersion(bin string) string {
 	default:
 		args = []string{"--version"}
 	}
-	out, _ := exec.Command(bin, args...).CombinedOutput()
-	return ExtractVersion(string(out))
+	return ExtractVersion(commandCombinedOutput(bin, args...))
 }
 
 // CompareVersions returns -1, 0 or +1. Components are compared numerically, so

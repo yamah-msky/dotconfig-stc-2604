@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -61,6 +62,14 @@ type Tool struct {
 func (t Tool) Floating() bool { return t.Ref == refLatest }
 
 const refLatest = "latest"
+
+var placeholderRE = regexp.MustCompile(`\{[A-Z_]+\}`)
+
+var knownPlaceholders = map[string]bool{
+	"{TAG}": true, "{VERSION}": true, "{ARCH}": true,
+	"{RUST_GNU}": true, "{RUST_MUSL}": true, "{GOARCH}": true,
+	"{DEB_ARCH}": true, "{BOB_ARCH}": true,
+}
 
 // Version is Ref without a leading v. Upstreams disagree about the prefix --
 // sheldon and uv publish "0.8.5", everyone else "v0.8.5" -- so the manifest
@@ -178,10 +187,23 @@ func LoadTools(dir string) ([]Tool, error) {
 		return nil, err
 	}
 	var out []Tool
+	seen := map[string]bool{}
 	for i, r := range rs {
 		if len(r) != 6 {
 			return nil, fmt.Errorf("tools.tsv row %d (%q): want 6 tab-separated fields, got %d",
 				i+1, r[0], len(r))
+		}
+		if r[0] == "" || r[1] == "" || r[3] == "" || r[4] == "" {
+			return nil, fmt.Errorf("tools.tsv row %d: required field is empty", i+1)
+		}
+		if seen[r[0]] {
+			return nil, fmt.Errorf("tools.tsv row %d: duplicate key %q", i+1, r[0])
+		}
+		seen[r[0]] = true
+		for _, p := range placeholderRE.FindAllString(r[4], -1) {
+			if !knownPlaceholders[p] {
+				return nil, fmt.Errorf("tools.tsv row %d (%s): unknown placeholder %s", i+1, r[0], p)
+			}
 		}
 		t := Tool{Name: r[0], Ref: r[1], Min: r[2], Repo: r[3], Asset: r[4]}
 		switch install := r[5]; {
@@ -204,10 +226,18 @@ func LoadRuntimes(dir string) ([]Runtime, error) {
 		return nil, err
 	}
 	var out []Runtime
+	seen := map[string]bool{}
 	for i, r := range rs {
 		if len(r) != 4 {
 			return nil, fmt.Errorf("runtimes.tsv row %d (%q): want 4 fields, got %d", i+1, r[0], len(r))
 		}
+		if r[0] == "" || r[1] == "" || r[3] == "" {
+			return nil, fmt.Errorf("runtimes.tsv row %d: required field is empty", i+1)
+		}
+		if seen[r[0]] {
+			return nil, fmt.Errorf("runtimes.tsv row %d: duplicate key %q", i+1, r[0])
+		}
+		seen[r[0]] = true
 		out = append(out, Runtime{r[0], r[1], r[2], r[3]})
 	}
 	return out, nil
@@ -219,11 +249,19 @@ func LoadNpmGlobals(dir string) ([]NpmGlobal, error) {
 		return nil, err
 	}
 	var out []NpmGlobal
+	seen := map[string]bool{}
 	for i, r := range rs {
 		if len(r) != 4 {
 			return nil, fmt.Errorf("npm-globals.tsv row %d (%q): want 4 tab-separated fields, got %d",
 				i+1, r[0], len(r))
 		}
+		if r[0] == "" || r[1] == "" || r[2] == "" {
+			return nil, fmt.Errorf("npm-globals.tsv row %d: required field is empty", i+1)
+		}
+		if seen[r[0]] {
+			return nil, fmt.Errorf("npm-globals.tsv row %d: duplicate key %q", i+1, r[0])
+		}
+		seen[r[0]] = true
 		out = append(out, NpmGlobal{Name: r[0], Package: r[1], Ref: r[2], Bin: r[3]})
 	}
 	return out, nil

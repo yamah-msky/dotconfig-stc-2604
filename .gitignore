@@ -4,6 +4,11 @@
 # .gitignore
 !.gitignore
 
+# CI
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
+
 # bootstrap
 # The `*` above ignores every level, so each directory needs its own negation:
 # without `!bootstrap/steps/` git never descends into it and `!bootstrap/steps/*`

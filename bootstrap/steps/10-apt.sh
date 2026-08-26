@@ -1,11 +1,20 @@
 # shellcheck shell=bash
 # apt packages, the GitHub CLI repository, and the two Ubuntu-only name shims.
 
-_APT_UPDATED=0
+# A file under the run-scoped temporary root survives the per-step subshells.
+# A shell variable did not: on a fresh machine every apt group ran apt-get
+# update again even though _APT_UPDATED appeared to cache it.
+apt_state_file() { printf '%s/apt-updated\n' "$RUN_TMP_ROOT"; }
+
+apt_invalidate() {
+  [ -n "${RUN_TMP_ROOT:-}" ] && rm -f -- "$(apt_state_file)"
+  return 0
+}
+
 apt_refresh() {
-  [ "$_APT_UPDATED" = 1 ] && return 0
+  [ "${DRY_RUN:-0}" != 1 ] && [ -f "$(apt_state_file)" ] && return 0
   run_sudo apt-get update -y || return 1
-  _APT_UPDATED=1
+  [ "${DRY_RUN:-0}" = 1 ] || : >"$(apt_state_file)"
 }
 
 # Everything in one apt-get invocation per group: apt resolves them together and
@@ -74,7 +83,7 @@ step_gh() {
       printf 'deb [arch=%s signed-by=%s] https://cli.github.com/packages stable main\n' \
         "$(dpkg --print-architecture)" "$GH_KEYRING" \
         | ${SUDO_CMD:+$SUDO_CMD} tee "$GH_LIST" >/dev/null
-      _APT_UPDATED=0
+      apt_invalidate
     fi
   fi
   apt_refresh || return 1

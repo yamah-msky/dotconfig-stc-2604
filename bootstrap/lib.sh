@@ -141,9 +141,31 @@ run_sudo() {
 # ----------------------------------------------------------------------------
 # Temporary directories
 # ----------------------------------------------------------------------------
-declare -a _TMPDIRS=()
-mktmp() { local d; d=$(mktemp -d) || return 1; _TMPDIRS+=("$d"); printf '%s\n' "$d"; }
-tmp_cleanup() { [ ${#_TMPDIRS[@]} -gt 0 ] && rm -rf -- "${_TMPDIRS[@]}"; return 0; }
+RUN_TMP_ROOT=""
+
+# Steps execute in subshells and mktmp is normally called through command
+# substitution.  An in-memory array therefore cannot communicate temporary
+# directories back to the parent process.  Keep one exported, run-scoped root
+# instead; removing it also removes every child a step created.
+tmp_init() {
+  [ "${DRY_RUN:-0}" = 1 ] && return 0
+  RUN_TMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/dotconfig-bootstrap.XXXXXX") || return 1
+  export RUN_TMP_ROOT
+}
+
+mktmp() {
+  if [ "${DRY_RUN:-0}" = 1 ]; then
+    printf '%s\n' "${TMPDIR:-/tmp}/dotconfig-bootstrap.dry-run/step"
+    return 0
+  fi
+  [ -n "$RUN_TMP_ROOT" ] || { warn "temporary root is not initialized"; return 1; }
+  mktemp -d "$RUN_TMP_ROOT/step.XXXXXX"
+}
+
+tmp_cleanup() {
+  [ -n "$RUN_TMP_ROOT" ] && rm -rf -- "$RUN_TMP_ROOT"
+  return 0
+}
 
 # ----------------------------------------------------------------------------
 # Architecture
