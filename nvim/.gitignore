@@ -6,3 +6,9 @@ debug
 foo.*
 *.log
 data
+
+# The dotfiles repository ignores new files by default. Re-include LazyVim's
+# standard plugin directory and the local formatter configuration.
+!stylua.toml
+!lua/plugins/
+!lua/plugins/*.lua
