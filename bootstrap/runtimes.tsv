@@ -9,7 +9,7 @@
 #
 # name	ref	min	how
 nvim	v0.12.5	0.12.0	bob
-nvm	v0.40.6	0.40.0	git tag
+nvm	v0.40.7	0.40.0	git tag
 node	24.20.0	20.0.0	nvm
 pnpm	11.24.0	9.0.0	get.pnpm.io
 go	1.27.0	1.22.0	go.dev tarball

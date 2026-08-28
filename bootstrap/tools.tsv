@@ -35,8 +35,8 @@ yazi	v26.8.15	25.0.0	sxyazi/yazi	yazi-{RUST_GNU}.zip	bin:yazi,ya
 starship	v1.26.0	1.20.0	starship/starship	starship-{RUST_MUSL}.tar.gz	bin:starship
 sheldon	0.8.5	0.7.0	rossmacarthur/sheldon	sheldon-{VERSION}-{RUST_MUSL}.tar.gz	bin:sheldon
 bob	v4.1.7	4.0.0	MordechaiHadad/bob	bob-linux-{BOB_ARCH}.zip	bin:bob
-uv	0.12.6	0.5.0	astral-sh/uv	uv-{RUST_GNU}.tar.gz	bin:uv,uvx
-pixi	v0.77.1	0.40.0	prefix-dev/pixi	pixi-{RUST_MUSL}.tar.gz	bin:pixi
+uv	0.12.7	0.5.0	astral-sh/uv	uv-{RUST_GNU}.tar.gz	bin:uv,uvx
+pixi	v0.78.0	0.40.0	prefix-dev/pixi	pixi-{RUST_MUSL}.tar.gz	bin:pixi
 cica	v5.0.3	-	miiton/Cica	Cica_{TAG}_without_emoji.zip	font
 yt-dlp	latest	-	yt-dlp/yt-dlp	yt-dlp_linux	bin:yt-dlp
 stylua	v2.5.2	2.0.0	JohnnyMorganz/StyLua	stylua-linux-{ARCH}-musl.zip	bin:stylua
