@@ -51,7 +51,7 @@ apply = ["defer"]
 # zdharma was deleted upstream; zdharma-continuum is the maintained fork.
 [plugins.fast-syntax-highlighting]
 github = "zdharma-continuum/fast-syntax-highlighting"
-rev = "3d574ccf48804b10dca52625df13da5edae7f553"
+rev = "4672ad5dd9ad68a7effc1476d65afb7c584ce2b3"
 apply = ["defer"]
 
 # The starship prompt is initialised in .zshrc, guarded on the binary existing.
