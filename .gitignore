@@ -72,3 +72,10 @@
 !git/config
 !git/config.local.template
 !git/ignore
+
+# 秘密鍵は何があっても追跡しない
+.ssh/id_*
+!.ssh/id_*.pub
+.ssh/known_hosts*
+.ssh/*.sock
+.config/git/config.local
