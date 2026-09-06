@@ -24,7 +24,8 @@
 	defaultBranch = main
 
 [url "git@github.com:"]
-  insteadOf = https://github.com/
+  # Keep HTTPS downloads usable by plugin managers without SSH authentication.
+  pushInsteadOf = https://github.com/
 
 [include]
   path = $HOME/.config/git/config.local
